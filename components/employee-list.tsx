@@ -1,14 +1,12 @@
 "use client"
 
-import { DialogTrigger } from "@/components/ui/dialog"
-
 import { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, List, ArrowUpDown, Pencil, Trash2 } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Plus, List, ArrowUpDown, Pencil, Trash2, Eye } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useForm } from "react-hook-form"
@@ -31,6 +29,7 @@ export function EmployeeList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<{
     id: string;
     name: string;
@@ -88,6 +87,11 @@ export function EmployeeList() {
       status: employee.status,
     })
     setIsUpdateDialogOpen(true)
+  }
+
+  const handleView = (employee: { id: string; name: string; email: string; phone: string; role: string; status: string; avatar: string }) => {
+    setSelectedEmployee(employee)
+    setIsViewDialogOpen(true)
   }
 
   const EmployeeForm = ({ form, onSubmit, dialogTitle }: { form: any; onSubmit: (data: any) => void; dialogTitle: string }) => (
@@ -271,6 +275,10 @@ export function EmployeeList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleView(employee)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        View
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleUpdate(employee)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Update
@@ -294,6 +302,47 @@ export function EmployeeList() {
             <DialogTitle>Update Employee</DialogTitle>
           </DialogHeader>
           <EmployeeForm form={updateForm} onSubmit={onUpdateSubmit} dialogTitle="Update Employee" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+          </DialogHeader>
+          {selectedEmployee && (
+            <div className="grid gap-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedEmployee.avatar} />
+                  <AvatarFallback>
+                    {selectedEmployee.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedEmployee.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedEmployee.role}</p>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <p>
+                  <strong>ID:</strong> {selectedEmployee.id}
+                </p>
+                <p>
+                  <strong>Email:</strong> {selectedEmployee.email}
+                </p>
+                <p>
+                  <strong>Phone:</strong> {selectedEmployee.phone}
+                </p>
+                <p>
+                  <strong>Status:</strong> {selectedEmployee.status}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

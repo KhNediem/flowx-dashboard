@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Plus, List, ArrowUpDown, Pencil, Trash2 } from "lucide-react"
+import { Plus, List, ArrowUpDown, Pencil, Trash2, Eye } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,6 +27,7 @@ export function InventoryList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
 
   const addForm = useForm({
@@ -76,6 +77,11 @@ export function InventoryList() {
       status: item.status,
     })
     setIsUpdateDialogOpen(true)
+  }
+
+  const handleView = (item: any) => {
+    setSelectedItem(item)
+    setIsViewDialogOpen(true)
   }
 
   const InventoryForm = ({ form, onSubmit, dialogTitle }: { form: any, onSubmit: any, dialogTitle: string }) => (
@@ -241,6 +247,10 @@ export function InventoryList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleView(item)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        View
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleUpdate(item)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Update
@@ -264,6 +274,38 @@ export function InventoryList() {
             <DialogTitle>Update Inventory Item</DialogTitle>
           </DialogHeader>
           <InventoryForm form={updateForm} onSubmit={onUpdateSubmit} dialogTitle="Update Item" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inventory Item Details</DialogTitle>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <p>
+                  <strong>ID:</strong> {selectedItem.id}
+                </p>
+                <p>
+                  <strong>Name:</strong> {selectedItem.name}
+                </p>
+                <p>
+                  <strong>SKU:</strong> {selectedItem.sku}
+                </p>
+                <p>
+                  <strong>Category:</strong> {selectedItem.category}
+                </p>
+                <p>
+                  <strong>Stock:</strong> {selectedItem.stock}
+                </p>
+                <p>
+                  <strong>Status:</strong> {selectedItem.status}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
