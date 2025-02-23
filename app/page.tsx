@@ -6,7 +6,9 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <MainContent />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <MainContent />
+      </div>
       <RightPanel />
     </div>
   )
