@@ -1,11 +1,13 @@
-"use client";
+"use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Package, Users, ShoppingCart } from "lucide-react"
+import { Home, Package, Users, ShoppingCart, LogOut } from "lucide-react"
+import { useAuth } from "../contexts/AuthContext"
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { logout } = useAuth()
 
   const isActive = (path: string) => {
     return pathname === path
@@ -68,6 +70,15 @@ export function Sidebar() {
             </Link>
           </div>
         </div>
+      </div>
+      <div className="absolute bottom-4 left-4">
+        <button
+          onClick={logout}
+          className="flex items-center gap-3 rounded-lg px-4 py-2 text-muted-foreground hover:text-primary hover:bg-secondary"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
       </div>
     </aside>
   )
