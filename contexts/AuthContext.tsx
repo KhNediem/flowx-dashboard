@@ -1,54 +1,45 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useState, useContext, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import type { Session, User, AuthError } from "@supabase/supabase-js"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface AuthContextType {
-  isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<boolean>
-  logout: () => void
+  user: User | null
+  session: Session | null
+  signOut: () => Promise<{ error: AuthError | null }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const router = useRouter()
+export function AuthProvider({
+  children,
+  initialSession,
+}: { children: React.ReactNode; initialSession: Session | null }) {
+  const [user, setUser] = useState<User | null>(initialSession?.user || null)
+  const [session, setSession] = useState<Session | null>(initialSession)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    // Check if the user is authenticated on initial load
-    const checkAuth = async () => {
-      const response = await fetch("/api/check-auth")
-      if (response.ok) {
-        setIsAuthenticated(true)
-      }
-    }
-    checkAuth()
-  }, [])
-
-  const login = async (email: string, password: string) => {
-    const response = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      setUser(session?.user ?? null)
     })
 
-    if (response.ok) {
-      setIsAuthenticated(true)
-      return true
-    }
-    return false
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  const value = {
+    user,
+    session,
+    signOut: () => supabase.auth.signOut(),
   }
 
-  const logout = () => {
-    fetch("/api/logout", { method: "POST" }).then(() => {
-      setIsAuthenticated(false)
-      router.push("/login")
-    })
-  }
-
-  return <AuthContext.Provider value={{ isAuthenticated, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

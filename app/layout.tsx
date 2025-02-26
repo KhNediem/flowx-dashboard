@@ -1,22 +1,27 @@
 import type React from "react"
-import "@/styles/globals.css"
-import { Inter } from "next/font/google"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { AuthProvider } from "@/contexts/AuthContext"
-import { AnimatedLayout } from "@/components/animated-layout"
+import { Inter } from "next/font/google"
+import "@/styles/globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const supabase = createServerComponentClient({ cookies })
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <AuthProvider>
-          <AnimatedLayout>{children}</AnimatedLayout>
-        </AuthProvider>
+        <AuthProvider initialSession={session}>{children}</AuthProvider>
       </body>
     </html>
   )

@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, Package, Users, ShoppingCart, LogOut } from "lucide-react"
-import { useAuth } from "../contexts/AuthContext"
+import { useAuth } from "@/contexts/AuthContext"
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { signOut } = useAuth()
 
   const isActive = (path: string) => {
     return pathname === path
@@ -73,7 +73,7 @@ export function Sidebar() {
       </div>
       <div className="absolute bottom-4 left-4">
         <button
-          onClick={logout}
+          onClick={() => signOut()}
           className="flex items-center gap-3 rounded-lg px-4 py-2 text-muted-foreground hover:text-primary hover:bg-secondary"
         >
           <LogOut className="h-4 w-4" />

@@ -8,32 +8,41 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { motion } from "framer-motion"
+import GoogleLoginButton from "@/components/GoogleLoginButton"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
-    const response = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     })
 
-    if (response.ok) {
-      router.push("/")
+    if (error) {
+      setError(error.message)
     } else {
-      setError("Invalid email or password")
+      router.push("/")
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={{ duration: 0.3 }}
+      className="flex min-h-screen items-center justify-center bg-background"
+    >
       <Card className="w-[350px]">
         <CardHeader>
           <CardTitle>Login</CardTitle>
@@ -68,12 +77,22 @@ export default function LoginPage() {
             {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
           </form>
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline">Cancel</Button>
-          <Button onClick={handleSubmit}>Login</Button>
+        <CardFooter className="flex flex-col gap-4">
+          <Button onClick={handleSubmit} className="w-full">
+            Login
+          </Button>
+          <div className="relative w-full">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            </div>
+          </div>
+          <GoogleLoginButton />
         </CardFooter>
       </Card>
-    </div>
+    </motion.div>
   )
 }
 
