@@ -1,98 +1,131 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Plus, List, ArrowUpDown, Pencil, Trash2, Eye } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useForm } from "react-hook-form"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
-const inventory = [
-  {
-    id: "#CM9801",
-    name: "Product",
-    sku: "CHR-002",
-    category: "Pastry",
-    stock: "25",
-    status: "In Stock",
-  },
-  // Add more items...
-]
+interface Product {
+  product_id: number
+  product_name: string
+  brand_id: number
+  product_length: number
+  product_depth: number
+  product_width: number
+  base_price: number
+  qr_code: string
+}
 
 export function InventoryList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
 
-  const addForm = useForm({
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  async function fetchProducts() {
+    const { data, error } = await supabase.from("products").select("*")
+
+    if (error) {
+      console.error("Error fetching products:", error)
+    } else {
+      setProducts(data || [])
+    }
+  }
+
+  const addForm = useForm<Product>({
     defaultValues: {
-      name: "",
-      sku: "",
-      category: "",
-      stock: "",
-      status: "In Stock",
+      product_name: "",
+      brand_id: 0,
+      product_length: 0,
+      product_depth: 0,
+      product_width: 0,
+      base_price: 0,
+      qr_code: "",
     },
   })
 
-  const updateForm = useForm({
+  const updateForm = useForm<Product>({
     defaultValues: {
-      name: "",
-      sku: "",
-      category: "",
-      stock: "",
-      status: "In Stock",
+      product_name: "",
+      brand_id: 0,
+      product_length: 0,
+      product_depth: 0,
+      product_width: 0,
+      base_price: 0,
+      qr_code: "",
     },
   })
 
-  const onAddSubmit = (data: any) => {
-    console.log("Add item:", data)
-    setIsAddDialogOpen(false)
-    // Here you would typically send this data to your backend
+  const onAddSubmit = async (data: Product) => {
+    const { error } = await supabase.from("products").insert([data])
+
+    if (error) {
+      console.error("Error adding product:", error)
+    } else {
+      setIsAddDialogOpen(false)
+      fetchProducts()
+    }
   }
 
-  const onUpdateSubmit = (data: any) => {
-    console.log("Update item:", data)
-    setIsUpdateDialogOpen(false)
-    // Here you would typically send this data to your backend
+  const onUpdateSubmit = async (data: Product) => {
+    const { error } = await supabase.from("products").update(data).eq("product_id", selectedProduct?.product_id)
+
+    if (error) {
+      console.error("Error updating product:", error)
+    } else {
+      setIsUpdateDialogOpen(false)
+      fetchProducts()
+    }
   }
 
-  const handleDelete = (item: any) => {
-    console.log("Delete item:", item)
-    // Here you would typically send a delete request to your backend
+  const handleDelete = async (product: Product) => {
+    const { error } = await supabase.from("products").delete().eq("product_id", product.product_id)
+
+    if (error) {
+      console.error("Error deleting product:", error)
+    } else {
+      fetchProducts()
+    }
   }
 
-  const handleUpdate = (item: any) => {
-    setSelectedItem(item)
-    updateForm.reset({
-      name: item.name,
-      sku: item.sku,
-      category: item.category,
-      stock: item.stock,
-      status: item.status,
-    })
+  const handleUpdate = (product: Product) => {
+    setSelectedProduct(product)
+    updateForm.reset(product)
     setIsUpdateDialogOpen(true)
   }
 
-  const handleView = (item: any) => {
-    setSelectedItem(item)
+  const handleView = (product: Product) => {
+    setSelectedProduct(product)
     setIsViewDialogOpen(true)
   }
 
-  const InventoryForm = ({ form, onSubmit, dialogTitle }: { form: any, onSubmit: any, dialogTitle: string }) => (
+  const ProductForm = ({
+    form,
+    onSubmit,
+    dialogTitle,
+  }: { form: any; onSubmit: (data: Product) => void; dialogTitle: string }) => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="name"
+          name="product_name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Item Name</FormLabel>
+              <FormLabel>Product Name</FormLabel>
               <FormControl>
                 <Input placeholder="Product Name" {...field} />
               </FormControl>
@@ -102,12 +135,12 @@ export function InventoryList() {
         />
         <FormField
           control={form.control}
-          name="sku"
+          name="brand_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>SKU</FormLabel>
+              <FormLabel>Brand ID</FormLabel>
               <FormControl>
-                <Input placeholder="CHR-002" {...field} />
+                <Input type="number" placeholder="Brand ID" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -115,34 +148,12 @@ export function InventoryList() {
         />
         <FormField
           control={form.control}
-          name="category"
+          name="product_length"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Pastry">Pastry</SelectItem>
-                  <SelectItem value="Beverage">Beverage</SelectItem>
-                  <SelectItem value="Snack">Snack</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="stock"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Stock</FormLabel>
+              <FormLabel>Length</FormLabel>
               <FormControl>
-                <Input type="number" placeholder="25" {...field} />
+                <Input type="number" step="0.01" placeholder="Length" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -150,22 +161,52 @@ export function InventoryList() {
         />
         <FormField
           control={form.control}
-          name="status"
+          name="product_depth"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="In Stock">In Stock</SelectItem>
-                  <SelectItem value="Out of Stock">Out of Stock</SelectItem>
-                  <SelectItem value="Low Stock">Low Stock</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>Depth</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="Depth" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="product_width"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Width</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="Width" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="base_price"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Base Price</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="Base Price" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="qr_code"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>QR Code</FormLabel>
+              <FormControl>
+                <Input placeholder="QR Code" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -187,9 +228,9 @@ export function InventoryList() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Inventory Item</DialogTitle>
+                <DialogTitle>Add New Product</DialogTitle>
               </DialogHeader>
-              <InventoryForm form={addForm} onSubmit={onAddSubmit} dialogTitle="Add Item" />
+              <ProductForm form={addForm} onSubmit={onAddSubmit} dialogTitle="Add Product" />
             </DialogContent>
           </Dialog>
           <Button variant="outline" size="icon">
@@ -211,34 +252,24 @@ export function InventoryList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">
-                <input type="checkbox" className="rounded border-muted" />
-              </TableHead>
               <TableHead>ID</TableHead>
-              <TableHead>Item Name</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead>Product Name</TableHead>
+              <TableHead>Brand ID</TableHead>
+              <TableHead>Dimensions (L x W x D)</TableHead>
+              <TableHead>Base Price</TableHead>
+              <TableHead>QR Code</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {inventory.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <input type="checkbox" className="rounded border-muted" />
-                </TableCell>
-                <TableCell className="font-medium">{item.id}</TableCell>
-                <TableCell>{item.name}</TableCell>
-                <TableCell>{item.sku}</TableCell>
-                <TableCell>{item.category}</TableCell>
-                <TableCell>{item.stock}</TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-1 text-xs font-medium text-green-500">
-                    {item.status}
-                  </span>
-                </TableCell>
+            {products.map((product) => (
+              <TableRow key={product.product_id}>
+                <TableCell>{product.product_id}</TableCell>
+                <TableCell>{product.product_name}</TableCell>
+                <TableCell>{product.brand_id}</TableCell>
+                <TableCell>{`${product.product_length} x ${product.product_width} x ${product.product_depth}`}</TableCell>
+                <TableCell>{product.base_price}</TableCell>
+                <TableCell>{product.qr_code}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -247,15 +278,15 @@ export function InventoryList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleView(item)}>
+                      <DropdownMenuItem onClick={() => handleView(product)}>
                         <Eye className="mr-2 h-4 w-4" />
                         View
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleUpdate(item)}>
+                      <DropdownMenuItem onClick={() => handleUpdate(product)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Update
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDelete(item)}>
+                      <DropdownMenuItem onClick={() => handleDelete(product)}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
@@ -271,57 +302,49 @@ export function InventoryList() {
       <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update Inventory Item</DialogTitle>
+            <DialogTitle>Update Product</DialogTitle>
           </DialogHeader>
-          <InventoryForm form={updateForm} onSubmit={onUpdateSubmit} dialogTitle="Update Item" />
+          <ProductForm form={updateForm} onSubmit={onUpdateSubmit} dialogTitle="Update Product" />
         </DialogContent>
       </Dialog>
 
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Inventory Item Details</DialogTitle>
+            <DialogTitle>Product Details</DialogTitle>
           </DialogHeader>
-          {selectedItem && (
+          {selectedProduct && (
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <p>
-                  <strong>ID:</strong> {selectedItem.id}
+                  <strong>ID:</strong> {selectedProduct.product_id}
                 </p>
                 <p>
-                  <strong>Name:</strong> {selectedItem.name}
+                  <strong>Name:</strong> {selectedProduct.product_name}
                 </p>
                 <p>
-                  <strong>SKU:</strong> {selectedItem.sku}
+                  <strong>Brand ID:</strong> {selectedProduct.brand_id}
                 </p>
                 <p>
-                  <strong>Category:</strong> {selectedItem.category}
+                  <strong>Length:</strong> {selectedProduct.product_length}
                 </p>
                 <p>
-                  <strong>Stock:</strong> {selectedItem.stock}
+                  <strong>Width:</strong> {selectedProduct.product_width}
                 </p>
                 <p>
-                  <strong>Status:</strong> {selectedItem.status}
+                  <strong>Depth:</strong> {selectedProduct.product_depth}
+                </p>
+                <p>
+                  <strong>Base Price:</strong> {selectedProduct.base_price}
+                </p>
+                <p>
+                  <strong>QR Code:</strong> {selectedProduct.qr_code}
                 </p>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      <div className="flex items-center justify-center space-x-2">
-        <Button variant="outline" size="icon" disabled>
-          {"<"}
-        </Button>
-        {[1, 2, 3, 4, 5].map((page) => (
-          <Button key={page} variant={page === 1 ? "default" : "outline"} size="icon">
-            {page}
-          </Button>
-        ))}
-        <Button variant="outline" size="icon">
-          {">"}
-        </Button>
-      </div>
     </div>
   )
 }
