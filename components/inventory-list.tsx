@@ -1,40 +1,104 @@
 "use client"
 
+import React from "react"
+
 import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Plus, List, ArrowUpDown, Pencil, Trash2, Eye } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { useForm } from "react-hook-form"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Eye, ChevronRight, ChevronDown, Plus, Pencil, Trash2 } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useForm } from "react-hook-form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Product {
   product_id: number
   product_name: string
   brand_id: number
-  product_length: number
-  product_depth: number
-  product_width: number
   base_price: number
-  qr_code: string
+  photo_url: string
+}
+
+interface Store {
+  store_id: number
+  store_name: string
+  address: string
+}
+
+interface InventoryItem {
+  inventory_id: number
+  store_id: number
+  product_id: number
+  current_quantity: number
+  last_updated: string
+  products: Product
+  stores: Store
 }
 
 export function InventoryList() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [expandedStores, setExpandedStores] = useState<number[]>([])
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false)
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null)
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
+  const [stores, setStores] = useState<Store[]>([])
   const [products, setProducts] = useState<Product[]>([])
 
   const supabase = createClientComponentClient()
 
+  const addForm = useForm<Omit<InventoryItem, "inventory_id" | "last_updated" | "products" | "stores">>()
+  const editForm = useForm<Omit<InventoryItem, "last_updated" | "products" | "stores">>()
+
   useEffect(() => {
+    fetchInventory()
+    fetchStores()
     fetchProducts()
   }, [])
+
+  async function fetchInventory() {
+    const { data, error } = await supabase.from("real_time_inventory").select(`
+        inventory_id,
+        store_id,
+        product_id,
+        current_quantity,
+        last_updated,
+        products (
+          product_id,
+          product_name,
+          brand_id,
+          base_price,
+          photo_url
+        ),
+        stores (
+          store_id,
+          store_name,
+          address
+        )
+      `)
+
+    if (error) {
+      console.error("Error fetching inventory:", error)
+    } else {
+      setInventoryItems(data || [])
+    }
+  }
+
+  async function fetchStores() {
+    const { data, error } = await supabase.from("stores").select("*")
+
+    if (error) {
+      console.error("Error fetching stores:", error)
+    } else {
+      setStores(data || [])
+    }
+  }
 
   async function fetchProducts() {
     const { data, error } = await supabase.from("products").select("*")
@@ -46,166 +110,131 @@ export function InventoryList() {
     }
   }
 
-  const addForm = useForm<Product>({
-    defaultValues: {
-      product_name: "",
-      brand_id: 0,
-      product_length: 0,
-      product_depth: 0,
-      product_width: 0,
-      base_price: 0,
-      qr_code: "",
+  const groupedInventory = inventoryItems.reduce(
+    (acc, item) => {
+      if (!acc[item.store_id]) {
+        acc[item.store_id] = {
+          store: item.stores,
+          items: [],
+        }
+      }
+      acc[item.store_id].items.push({ ...item, product: item.products })
+      return acc
     },
-  })
+    {} as Record<number, { store: Store; items: (InventoryItem & { product: Product })[] }>,
+  )
 
-  const updateForm = useForm<Product>({
-    defaultValues: {
-      product_name: "",
-      brand_id: 0,
-      product_length: 0,
-      product_depth: 0,
-      product_width: 0,
-      base_price: 0,
-      qr_code: "",
-    },
-  })
-
-  const onAddSubmit = async (data: Product) => {
-    const { error } = await supabase.from("products").insert([data])
-
-    if (error) {
-      console.error("Error adding product:", error)
-    } else {
-      setIsAddDialogOpen(false)
-      fetchProducts()
-    }
+  const toggleStoreExpansion = (storeId: number) => {
+    setExpandedStores((prev) => (prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]))
   }
 
-  const onUpdateSubmit = async (data: Product) => {
-    const { error } = await supabase.from("products").update(data).eq("product_id", selectedProduct?.product_id)
-
-    if (error) {
-      console.error("Error updating product:", error)
-    } else {
-      setIsUpdateDialogOpen(false)
-      fetchProducts()
-    }
-  }
-
-  const handleDelete = async (product: Product) => {
-    const { error } = await supabase.from("products").delete().eq("product_id", product.product_id)
-
-    if (error) {
-      console.error("Error deleting product:", error)
-    } else {
-      fetchProducts()
-    }
-  }
-
-  const handleUpdate = (product: Product) => {
+  const handleProductView = (product: Product) => {
     setSelectedProduct(product)
-    updateForm.reset(product)
-    setIsUpdateDialogOpen(true)
+    setIsProductModalOpen(true)
   }
 
-  const handleView = (product: Product) => {
-    setSelectedProduct(product)
-    setIsViewDialogOpen(true)
+  const handleStoreView = (store: Store) => {
+    setSelectedStore(store)
+    setIsStoreModalOpen(true)
   }
 
-  const ProductForm = ({
+  const handleAddInventory = async (
+    data: Omit<InventoryItem, "inventory_id" | "last_updated" | "products" | "stores">,
+  ) => {
+    const { error } = await supabase.from("real_time_inventory").insert([data])
+
+    if (error) {
+      console.error("Error adding inventory item:", error)
+    } else {
+      setIsAddModalOpen(false)
+      fetchInventory()
+    }
+  }
+
+  const handleEditInventory = async (data: Omit<InventoryItem, "last_updated" | "products" | "stores">) => {
+    const { error } = await supabase.from("real_time_inventory").update(data).eq("inventory_id", data.inventory_id)
+
+    if (error) {
+      console.error("Error updating inventory item:", error)
+    } else {
+      setIsEditModalOpen(false)
+      fetchInventory()
+    }
+  }
+
+  const handleDeleteInventory = async (inventoryId: number) => {
+    const { error } = await supabase.from("real_time_inventory").delete().eq("inventory_id", inventoryId)
+
+    if (error) {
+      console.error("Error deleting inventory item:", error)
+    } else {
+      fetchInventory()
+    }
+  }
+
+  const InventoryForm = ({
     form,
     onSubmit,
     dialogTitle,
-  }: { form: any; onSubmit: (data: Product) => void; dialogTitle: string }) => (
+  }: { form: any; onSubmit: (data: any) => void; dialogTitle: string }) => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="product_name"
+          name="store_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Product Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Product Name" {...field} />
-              </FormControl>
+              <FormLabel>Store</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a store" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {stores.map((store) => (
+                    <SelectItem key={store.store_id} value={store.store_id.toString()}>
+                      {store.store_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
         />
         <FormField
           control={form.control}
-          name="brand_id"
+          name="product_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Brand ID</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="Brand ID" {...field} />
-              </FormControl>
+              <FormLabel>Product</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a product" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.product_id} value={product.product_id.toString()}>
+                      {product.product_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
         />
         <FormField
           control={form.control}
-          name="product_length"
+          name="current_quantity"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Length</FormLabel>
+              <FormLabel>Quantity</FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" placeholder="Length" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="product_depth"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Depth</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="Depth" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="product_width"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Width</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="Width" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="base_price"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Base Price</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="Base Price" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="qr_code"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>QR Code</FormLabel>
-              <FormControl>
-                <Input placeholder="QR Code" {...field} />
+                <Input type="number" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -219,96 +248,87 @@ export function InventoryList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="icon">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-              </DialogHeader>
-              <ProductForm form={addForm} onSubmit={onAddSubmit} dialogTitle="Add Product" />
-            </DialogContent>
-          </Dialog>
-          <Button variant="outline" size="icon">
-            <List className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon">
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
-        </div>
         <Input
-          placeholder="Search"
+          placeholder="Search by product or store"
           className="max-w-xs"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        <Button onClick={() => setIsAddModalOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Add Inventory
+        </Button>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Product Name</TableHead>
-              <TableHead>Brand ID</TableHead>
-              <TableHead>Dimensions (L x W x D)</TableHead>
-              <TableHead>Base Price</TableHead>
-              <TableHead>QR Code</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead>Store</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Last Updated</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.product_id}>
-                <TableCell>{product.product_id}</TableCell>
-                <TableCell>{product.product_name}</TableCell>
-                <TableCell>{product.brand_id}</TableCell>
-                <TableCell>{`${product.product_length} x ${product.product_width} x ${product.product_depth}`}</TableCell>
-                <TableCell>{product.base_price}</TableCell>
-                <TableCell>{product.qr_code}</TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        ⋮
+            {Object.entries(groupedInventory).map(([storeId, { store, items }]) => (
+              <React.Fragment key={storeId}>
+                {store ? (
+                  <TableRow className="bg-muted/50">
+                    <TableCell colSpan={5}>
+                      <Button variant="ghost" onClick={() => toggleStoreExpansion(store.store_id)} className="p-0">
+                        {expandedStores.includes(store.store_id) ? (
+                          <ChevronDown className="mr-2 h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="mr-2 h-4 w-4" />
+                        )}
+                        {store.store_name}
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleView(product)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleUpdate(product)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Update
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDelete(product)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
+                      <Button variant="ghost" size="sm" onClick={() => handleStoreView(store)} className="ml-2">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5}>Error: Store data is missing</TableCell>
+                  </TableRow>
+                )}
+                {expandedStores.includes(Number.parseInt(storeId)) &&
+                  items.map((item) => (
+                    <TableRow key={item.inventory_id}>
+                      <TableCell></TableCell>
+                      <TableCell>{item.product.product_name}</TableCell>
+                      <TableCell>{item.current_quantity}</TableCell>
+                      <TableCell>{new Date(item.last_updated).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => handleProductView(item.product)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedInventoryItem(item)
+                            editForm.reset(item)
+                            setIsEditModalOpen(true)
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteInventory(item.inventory_id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Product</DialogTitle>
-          </DialogHeader>
-          <ProductForm form={updateForm} onSubmit={onUpdateSubmit} dialogTitle="Update Product" />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+      <Dialog open={isProductModalOpen} onOpenChange={setIsProductModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Product Details</DialogTitle>
@@ -317,32 +337,62 @@ export function InventoryList() {
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <p>
-                  <strong>ID:</strong> {selectedProduct.product_id}
-                </p>
-                <p>
                   <strong>Name:</strong> {selectedProduct.product_name}
                 </p>
                 <p>
                   <strong>Brand ID:</strong> {selectedProduct.brand_id}
                 </p>
                 <p>
-                  <strong>Length:</strong> {selectedProduct.product_length}
+                  <strong>Base Price:</strong> ${selectedProduct.base_price.toFixed(2)}
+                </p>
+                {selectedProduct.photo_url && (
+                  <img
+                    src={selectedProduct.photo_url || "/placeholder.svg"}
+                    alt={selectedProduct.product_name}
+                    className="max-w-full h-auto"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isStoreModalOpen} onOpenChange={setIsStoreModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Store Details</DialogTitle>
+          </DialogHeader>
+          {selectedStore && (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <p>
+                  <strong>Name:</strong> {selectedStore.store_name}
                 </p>
                 <p>
-                  <strong>Width:</strong> {selectedProduct.product_width}
-                </p>
-                <p>
-                  <strong>Depth:</strong> {selectedProduct.product_depth}
-                </p>
-                <p>
-                  <strong>Base Price:</strong> {selectedProduct.base_price}
-                </p>
-                <p>
-                  <strong>QR Code:</strong> {selectedProduct.qr_code}
+                  <strong>Address:</strong> {selectedStore.address}
                 </p>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Inventory Item</DialogTitle>
+          </DialogHeader>
+          <InventoryForm form={addForm} onSubmit={handleAddInventory} dialogTitle="Add Item" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Inventory Item</DialogTitle>
+          </DialogHeader>
+          <InventoryForm form={editForm} onSubmit={handleEditInventory} dialogTitle="Update Item" />
         </DialogContent>
       </Dialog>
     </div>
