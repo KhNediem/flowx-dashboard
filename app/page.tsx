@@ -1,5 +1,5 @@
 import { Sidebar } from "@/components/sidebar"
-import { MainContent } from "@/components/main-content"
+import { Dashboard } from "@/components/dashboard"
 import { RightPanel } from "@/components/right-panel"
 
 export default function DashboardPage() {
@@ -7,10 +7,11 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <MainContent />
+        <main className="flex-1 overflow-y-auto p-6">
+          <Dashboard />
+        </main>
       </div>
-      <RightPanel />
+      
     </div>
   )
 }
-
