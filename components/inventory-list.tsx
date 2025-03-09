@@ -12,6 +12,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useForm } from "react-hook-form"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
 
 interface Product {
   product_id: number
@@ -50,6 +51,7 @@ export function InventoryList() {
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
   const [stores, setStores] = useState<Store[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [initialLoad, setInitialLoad] = useState(true)
 
   const supabase = createClientComponentClient()
 
@@ -60,6 +62,9 @@ export function InventoryList() {
     fetchInventory()
     fetchStores()
     fetchProducts()
+
+    // Set initialLoad to false after first load
+    setInitialLoad(false)
   }, [])
 
   async function fetchInventory() {
@@ -87,6 +92,18 @@ export function InventoryList() {
       console.error("Error fetching inventory:", error)
     } else {
       setInventoryItems(data || [])
+
+      // Check for low stock items
+      const lowStockItems = data?.filter((item) => item.current_quantity < 3) || []
+      if (lowStockItems.length > 0 && !initialLoad) {
+        toast.error(
+          `Low Stock Alert: ${lowStockItems.length} ${lowStockItems.length === 1 ? "item" : "items"} need attention`,
+          {
+            description: "Some inventory items are running low on stock.",
+            duration: 5000,
+          },
+        )
+      }
     }
   }
 
@@ -145,9 +162,11 @@ export function InventoryList() {
 
     if (error) {
       console.error("Error adding inventory item:", error)
+      toast.error("Failed to add inventory item")
     } else {
       setIsAddModalOpen(false)
       fetchInventory()
+      toast.success("Inventory item added successfully")
     }
   }
 
@@ -156,9 +175,11 @@ export function InventoryList() {
 
     if (error) {
       console.error("Error updating inventory item:", error)
+      toast.error("Failed to update inventory item")
     } else {
       setIsEditModalOpen(false)
       fetchInventory()
+      toast.success("Inventory item updated successfully")
     }
   }
 
@@ -167,8 +188,10 @@ export function InventoryList() {
 
     if (error) {
       console.error("Error deleting inventory item:", error)
+      toast.error("Failed to delete inventory item")
     } else {
       fetchInventory()
+      toast.success("Inventory item deleted successfully")
     }
   }
 
@@ -296,10 +319,12 @@ export function InventoryList() {
                 )}
                 {expandedStores.includes(Number.parseInt(storeId)) &&
                   items.map((item) => (
-                    <TableRow key={item.inventory_id}>
+                    <TableRow key={item.inventory_id} className={item.current_quantity < 3 ? "bg-destructive/10" : ""}>
                       <TableCell></TableCell>
                       <TableCell>{item.product.product_name}</TableCell>
-                      <TableCell>{item.current_quantity}</TableCell>
+                      <TableCell className={item.current_quantity < 3 ? "font-bold text-destructive" : ""}>
+                        {item.current_quantity}
+                      </TableCell>
                       <TableCell>{new Date(item.last_updated).toLocaleString()}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm" onClick={() => handleProductView(item.product)}>
