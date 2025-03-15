@@ -5,17 +5,22 @@ import { useRef, useEffect, useState } from "react";
 import { format, eachDayOfInterval, addHours } from "date-fns";
 
 interface ShiftData {
-  schedule_id: number;
+  schedule_id?: number;
+  id?: number;
   profile_id: number;
   store_id: number;
-  shift_start: string;
-  shift_end: string;
+  shift_start?: string;
+  shift_end?: string;
+  start?: string;
+  end?: string;
+  type?: string;
   confidence_score?: number;
   // Additional fields for tooltip
   employee_name?: string;
   position?: string;
   department?: string;
   notes?: string;
+  prediction_date?: string;
 }
 
 interface TooltipData {
@@ -80,8 +85,8 @@ export function GanttChart({
   } else {
     // Auto-calculate from data
     const allDates = data.flatMap((shift) => [
-      new Date(shift.shift_start),
-      new Date(shift.shift_end),
+      new Date(shift.shift_start || shift.start || ""),
+      new Date(shift.shift_end || shift.end || ""),
     ]);
     minDate = new Date(Math.min(...allDates.map((d) => d.getTime())));
     maxDate = new Date(Math.max(...allDates.map((d) => d.getTime())));
@@ -95,21 +100,24 @@ export function GanttChart({
 
   // Process shifts
   const processedShifts = data.map((shift) => {
-    const startTime = new Date(shift.shift_start);
-    const endTime = new Date(shift.shift_end);
+    const startTime = new Date(shift.shift_start || shift.start || "");
+    const endTime = new Date(shift.shift_end || shift.end || "");
+    const uniqueId = shift.schedule_id || shift.id;
 
     return {
       ...shift,
+      uniqueId,
       startTime,
       endTime,
       employeeName: shift.employee_name || `Employee ${shift.profile_id}`,
+      isPrediction: shift.type === "predicted",
     };
   });
 
   // Group shifts by employee
-  const employeeGroups: Record<string, ShiftData[]> = {};
+  const employeeGroups: Record<string, any[]> = {};
   processedShifts.forEach((shift) => {
-    const employeeName = shift.employee_name || `Employee ${shift.profile_id}`;
+    const employeeName = shift.employeeName;
     if (!employeeGroups[employeeName]) {
       employeeGroups[employeeName] = [];
     }
@@ -141,34 +149,42 @@ export function GanttChart({
   // Generate day markers for the ENTIRE date range using date-fns
   const days = eachDayOfInterval({ start: minDate, end: maxDate });
 
-  // Generate hour markers
   const hourMarkers = [];
   for (const day of days) {
     for (let hour = 0; hour < 24; hour += 4) {
-      // Every 4 hours
       hourMarkers.push(addHours(day, hour));
     }
   }
 
-  // Determine tick interval based on total days
   const totalDays = days.length;
-  let tickInterval = 1; // Show every day by default
+  let tickInterval = 1; 
 
   if (totalDays > 14) {
-    tickInterval = Math.ceil(totalDays / 14); // Show approximately 14 ticks
+    tickInterval = Math.ceil(totalDays / 14); 
   }
 
-  // Filter days for ticks based on interval
   const tickDays = days.filter((_, index) => index % tickInterval === 0);
 
-  // Store colors
+  // Different colors for predicted and actual shifts
+  const shiftColors: Record<string, { fill: string; stroke: string }> = {
+    predicted: {
+      fill: "#10b981", // Green
+      stroke: "#047857",
+    },
+    actual: {
+      fill: "#4f46e5", // Blue
+      stroke: "#3730a3",
+    },
+  };
+
+  // Store colors as a fallback
   const storeColors: Record<number, { fill: string; stroke: string }> = {
     1: {
-      fill: "#4f46e5", // Indigo for store 1
+      fill: "#4f46e5",
       stroke: "#3730a3",
     },
     2: {
-      fill: "#10b981", // Emerald for store 2
+      fill: "#10b981", 
       stroke: "#047857",
     },
   };
@@ -187,32 +203,30 @@ export function GanttChart({
   // Handle shift hover with enhanced tooltip
   const handleShiftHover = (e: React.MouseEvent, shift: any) => {
     const rect = (e.target as HTMLElement).getBoundingClientRect();
-    const startTimeStr = format(new Date(shift.shift_start), "h:mm a");
-    const endTimeStr = format(new Date(shift.shift_end), "h:mm a");
-    const dateStr = format(new Date(shift.shift_start), "EEE, MMM d, yyyy");
+    const startTime = shift.startTime;
+    const endTime = shift.endTime;
+    const startTimeStr = format(startTime, "h:mm a");
+    const endTimeStr = format(endTime, "h:mm a");
+    const dateStr = format(startTime, "EEE, MMM d, yyyy");
 
     // Calculate duration
-    const duration =
-      (new Date(shift.shift_end).getTime() -
-        new Date(shift.shift_start).getTime()) /
-      (1000 * 60 * 60);
+    const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
     const durationHours = Math.floor(duration);
     const durationMinutes = Math.floor((duration - durationHours) * 60);
     const durationFormatted = `${durationHours}h ${durationMinutes}m`;
 
-    console.log(shift, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
     setTooltip({
       visible: true,
-      x: rect.left + window.scrollX,
+      x: rect.left + window.scrollX, 
       y: rect.top + window.scrollY,
       content: (
         <div className="bg-white p-3 rounded-md shadow-md border border-gray-200 max-w-xs">
           <p className="text-black font-semibold mb-1">
-            {shift.employeeName || `Employee ${shift.profile_id}`}
+            {shift.employeeName}
           </p>
           <div className="grid grid-cols-2 gap-x-2 text-sm">
             <p className="text-black">Date:</p>
-            <p className="text-black">{shift.prediction_date}</p>
+            <p className="text-black">{dateStr}</p>
 
             <p className="text-black">Time:</p>
             <p className="text-black">
@@ -221,6 +235,23 @@ export function GanttChart({
 
             <p className="text-black">Duration:</p>
             <p className="text-black">{durationFormatted}</p>
+
+            <p className="text-black">Type:</p>
+            <p className="text-black">{shift.isPrediction ? "Predicted" : "Actual"}</p>
+
+            {shift.isPrediction && (
+              <>
+                <p className="text-black">Confidence:</p>
+                <p className="text-black">{(shift.confidence_score * 100).toFixed(0)}%</p>
+                
+                {shift.prediction_date && (
+                  <>
+                    <p className="text-black">Prediction Date:</p>
+                    <p className="text-black">{shift.prediction_date}</p>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {shift.notes && (
@@ -322,37 +353,6 @@ export function GanttChart({
               );
             })}
 
-          {/* X-axis (hours) - Only show if the date range is 7 days or less */}
-          {days.length <= 7 &&
-            hourMarkers.map((hour, index) => {
-              const isStartOfDay = hour.getHours() === 0;
-              return (
-                <g key={`hour-${index}`}>
-                  {/* Vertical grid line for hours (lighter than days) */}
-                  <line
-                    x1={getXPosition(hour)}
-                    y1={0}
-                    x2={getXPosition(hour)}
-                    y2={chartHeight}
-                    stroke={isStartOfDay ? "#e5e7eb" : "#f3f4f6"}
-                    strokeWidth={isStartOfDay ? 0.5 : 0.25}
-                    strokeDasharray={isStartOfDay ? "none" : "2,2"}
-                  />
-
-                  {/* Hour label - show only when the range is ≤ 7 days */}
-                  <text
-                    x={getXPosition(hour)}
-                    y={chartHeight + 40}
-                    textAnchor="middle"
-                    fontSize={10}
-                    fill="#6b7280"
-                  >
-                    {format(hour, "ha")}
-                  </text>
-                </g>
-              );
-            })}
-
           {/* Timeline label */}
           <text
             x={chartWidth / 2}
@@ -367,17 +367,19 @@ export function GanttChart({
           {/* Shifts */}
           {employees.map((employee, employeeIndex) =>
             employeeGroups[employee].map((shift, shiftIndex) => {
-              const startX = getXPosition(new Date(shift.shift_start));
-              const endX = getXPosition(new Date(shift.shift_end));
+              const startX = getXPosition(shift.startTime);
+              const endX = getXPosition(shift.endTime);
               const width = Math.max(2, endX - startX);
               const y = employeeIndex * rowHeight + rowHeight * 0.2;
               const height = rowHeight * 0.6;
 
-              const colorSet = storeColors[shift.store_id] || defaultColors;
+              // Choose color based on shift type
+              const colorKey = shift.isPrediction ? "predicted" : "actual";
+              const colorSet = shiftColors[colorKey];
 
               return (
                 <rect
-                  key={`shift-${shift.schedule_id}`}
+                  key={`shift-${shift.uniqueId}-${shiftIndex}`}
                   x={startX}
                   y={y}
                   width={width}
@@ -397,7 +399,6 @@ export function GanttChart({
         </g>
       </svg>
 
-      {/* Tooltip */}
       {tooltip.visible && (
         <div
           className="absolute z-10 pointer-events-none"
@@ -410,17 +411,21 @@ export function GanttChart({
         </div>
       )}
 
-      {/* Legend */}
       <div className="flex justify-center gap-4 mt-2">
-        {Object.entries(storeColors).map(([storeId, colors]) => (
-          <div key={`legend-${storeId}`} className="flex items-center">
-            <div
-              className="w-4 h-4 mr-2 rounded"
-              style={{ backgroundColor: colors.fill }}
-            ></div>
-            <span className="text-sm">Store {storeId}</span>
-          </div>
-        ))}
+        <div className="flex items-center">
+          <div
+            className="w-4 h-4 mr-2 rounded"
+            style={{ backgroundColor: shiftColors.actual.fill }}
+          ></div>
+          <span className="text-sm">Actual Shifts</span>
+        </div>
+        <div className="flex items-center">
+          <div
+            className="w-4 h-4 mr-2 rounded"
+            style={{ backgroundColor: shiftColors.predicted.fill }}
+          ></div>
+          <span className="text-sm">Predicted Shifts</span>
+        </div>
       </div>
     </div>
   );

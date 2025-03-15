@@ -16,10 +16,23 @@ interface Profile {
 }
 
 interface ScheduleEntry {
+  schedule_id: number;
   profile_id: number;
+  store_id: number;
+  shift_start: string;
+  shift_end: string;
+  schedule_type: string;
+  status: string;
+}
+
+interface SchedulePrediction {
+  prediction_id: number;
+  profile_id: number;
+  store_id: number;
   predicted_shift_start: string;
   predicted_shift_end: string;
-  profiles: Profile[];
+  prediction_date: string;
+  confidence_score: number;
 }
 
 interface SalesEntry {
@@ -31,6 +44,7 @@ interface SalesEntry {
 
 export function Dashboard() {
   const [scheduleData, setScheduleData] = useState<ScheduleEntry[]>([]);
+  const [schedulePredictions, setSchedulePredictions] = useState<SchedulePrediction[]>([]);
   const [salesData, setSalesData] = useState<SalesEntry[]>([]);
   const supabase = createClientComponentClient();
 
@@ -40,11 +54,13 @@ export function Dashboard() {
 
   async function fetchData() {
     try {
-      // Fetch scheduling data
+      // Fetch schedule data
       const { data: fetchedScheduleData, error: scheduleError } = await supabase
         .from("schedules")
         .select("*");
-
+      
+      console.log("fetchedScheduleData", fetchedScheduleData);
+      
       if (scheduleError) {
         console.error(
           "Error fetching schedule data:",
@@ -52,13 +68,27 @@ export function Dashboard() {
         );
         return;
       }
-
+      
       setScheduleData(fetchedScheduleData ?? []);
-
+      
+      // Fetch schedule predictions
+      const { data: fetchedPredictions, error: predictionsError } = await supabase
+        .from("schedule_predictions")
+        .select("*");
+      
+      console.log("schedulePredictions", fetchedPredictions);
+      
+      if (predictionsError) {
+        console.error("Error fetching schedule predictions:", predictionsError);
+      } else {
+        setSchedulePredictions(fetchedPredictions ?? []);
+      }
+      
+      // Fetch sales data
       const { data: fetchedSalesData, error: salesError } = await supabase
         .from("sales_forecasts")
         .select("*");
-
+      
       if (salesError) {
         console.error("Error fetching sales data:", salesError);
       } else {
@@ -95,7 +125,7 @@ export function Dashboard() {
               <CardTitle>Employee Scheduling</CardTitle>
             </CardHeader>
             <CardContent>
-              <EmployeeScheduling data={scheduleData} />
+              <EmployeeScheduling data={scheduleData} predictionData={schedulePredictions} />
             </CardContent>
           </Card>
         </TabsContent>
