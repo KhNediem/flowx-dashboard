@@ -1,15 +1,36 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { GanttChart } from "./charts/GanttChart"
 import { BarChart } from "./charts/BarChart"
 import { LineChart } from "./charts/LineChart"
+import type { DateRange } from "react-day-picker"
 
-// Static data
+// Define the data structure
+interface Profile {
+  first_name?: string
+  last_name?: string
+}
+
+interface ShiftData {
+  profile_id: number
+  store_id?: number
+  predicted_shift_start?: string
+  predicted_shift_end?: string
+  confidence_score?: number
+  prediction_date?: string
+  profiles?: Profile[]
+  // Add potential alternative field names
+  start_time?: string
+  end_time?: string
+  shift_start?: string
+  shift_end?: string
+}
+
+// Static data as fallback
 const staticShiftData = [
   {
     profile_id: 1,
@@ -59,49 +80,132 @@ const staticStores = [
   { store_id: 3, store_name: "Suburban Store" },
 ]
 
-export function EmployeeScheduling() {
-  const [shiftData, setShiftData] = useState(staticShiftData)
+interface EmployeeSchedulingProps {
+  data?: ShiftData[]
+}
+
+export function EmployeeScheduling({ data = [] }: EmployeeSchedulingProps) {
+  // Use provided data or fallback to static data if empty
+  const [shiftData, setShiftData] = useState<ShiftData[]>(data.length > 0 ? data : staticShiftData)
   const [stores, setStores] = useState(staticStores)
   const [selectedStore, setSelectedStore] = useState<number | null>(null)
   const [confidenceThreshold, setConfidenceThreshold] = useState(0)
-  const [dateRange, setDateRange] = useState({ from: new Date(2023, 5, 1), to: new Date(2023, 6, 1) })
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: new Date(new Date().setDate(new Date().getDate() - 7)),
+    to: new Date(new Date().setDate(new Date().getDate() + 7)),
+  })
   const [selectedChart, setSelectedChart] = useState("gantt")
 
-  const supabase = createClientComponentClient()
-
+  // Update shift data when prop changes
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (data && data.length > 0) {
+      data.forEach((shift, index) => {
+        // Try to find the start and end times from various possible field names
+        const startTime = shift.predicted_shift_start || shift.start_time || shift.shift_start
+        const endTime = shift.predicted_shift_end || shift.end_time || shift.shift_end
+      })
+      setShiftData(data)
+    }
+  }, [data])
 
-  async function fetchData() {
-    // Fetch shift data
-    const { data: shiftData, error: shiftError } = await supabase.from("schedule_predictions").select("*")
-    if (shiftError) {
-      console.error("Error fetching shift data:", shiftError)
-    } else {
-      setShiftData(shiftData && shiftData.length > 0 ? shiftData : staticShiftData)
+  const normalizedData = shiftData.map((shift) => {
+    const startTime = shift.predicted_shift_start || shift.start_time || shift.shift_start
+    const endTime = shift.predicted_shift_end || shift.end_time || shift.shift_end
+
+    let normalizedStartTime = startTime
+    let normalizedEndTime = endTime
+
+    if (!normalizedStartTime || !normalizedEndTime) {
+      const baseDate = new Date()
+      baseDate.setHours(9, 0, 0, 0) // Start at 9 AM
+
+      const shiftOffset = (shift.profile_id % 5) * 60 * 60 * 1000 // Offset by profile_id (in hours)
+      const shiftStart = new Date(baseDate.getTime() + shiftOffset)
+      const shiftEnd = new Date(shiftStart.getTime() + 8 * 60 * 60 * 1000) // 8 hour shift
+
+      normalizedStartTime = shiftStart.toISOString()
+      normalizedEndTime = shiftEnd.toISOString()
     }
 
-    // Fetch store data
-    const { data: storeData, error: storeError } = await supabase.from("stores").select("store_id, store_name")
-    if (storeError) {
-      console.error("Error fetching store data:", storeError)
-    } else {
-      setStores(storeData && storeData.length > 0 ? storeData : staticStores)
+    let predictionDate = shift.prediction_date
+    if (!predictionDate) {
+      try {
+        const shiftDate = new Date(normalizedStartTime)
+        if (!isNaN(shiftDate.getTime())) {
+          predictionDate = shiftDate.toISOString().split("T")[0]
+        } else {
+          predictionDate = new Date().toISOString().split("T")[0]
+        }
+      } catch (error) {
+        predictionDate = new Date().toISOString().split("T")[0]
+      }
     }
-  }
 
-  const filteredData = shiftData.filter(
-    (shift) =>
-      (!selectedStore || shift.store_id === selectedStore) &&
-      shift.confidence_score >= confidenceThreshold &&
-      new Date(shift.predicted_shift_start) >= dateRange.from &&
-      new Date(shift.predicted_shift_start) <= dateRange.to,
-  )
+    return {
+      ...shift,
+      predicted_shift_start: normalizedStartTime,
+      predicted_shift_end: normalizedEndTime,
+      confidence_score: shift.confidence_score || 0.5,
+      store_id: shift.store_id || 1,
+      prediction_date: predictionDate,
+    }
+  })
+
+  const filteredData = normalizedData.filter((shift) => {
+    // Store filter
+    if (selectedStore && selectedStore !== -1 && shift.store_id !== selectedStore) {
+      return false
+    }
+
+    // Confidence threshold filter
+    if ((shift.confidence_score || 0) < confidenceThreshold) {
+      return false
+    }
+
+    // Date range filter
+    try {
+      const shiftDate = new Date(shift.predicted_shift_start || "")
+      if (isNaN(shiftDate.getTime())) {
+        return false
+      }
+
+      const fromDate = dateRange?.from ? new Date(dateRange.from) : null
+      const toDate = dateRange?.to ? new Date(dateRange.to) : null
+
+      // Set times to midnight for proper comparison
+      if (fromDate) fromDate.setHours(0, 0, 0, 0)
+      if (toDate) {
+        toDate.setHours(23, 59, 59, 999)
+        // Add one day to include the end date fully
+        toDate.setDate(toDate.getDate() + 1)
+      }
+
+      if (fromDate && shiftDate < fromDate) {
+        return false
+      }
+      if (toDate && shiftDate > toDate) {
+        return false
+      }
+    } catch (error) {
+      console.error("Error filtering by date:", error)
+      return false
+    }
+
+    return true
+  })
+
+  // Convert dateRange to the format expected by GanttChart
+  const chartDateRange =
+    dateRange.from && dateRange.to
+      ? {
+          from: new Date(dateRange.from),
+          to: new Date(dateRange.to),
+        }
+      : undefined
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap gap-4 items-center">
         <Select onValueChange={(value) => setSelectedStore(Number(value))}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select Store" />
@@ -115,7 +219,7 @@ export function EmployeeScheduling() {
             ))}
           </SelectContent>
         </Select>
-        <Select onValueChange={(value) => setSelectedChart(value)}>
+        <Select defaultValue="gantt" onValueChange={(value) => setSelectedChart(value)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select Chart Type" />
           </SelectTrigger>
@@ -126,7 +230,7 @@ export function EmployeeScheduling() {
           </SelectContent>
         </Select>
         <div className="flex items-center space-x-2">
-          <span>Confidence Threshold:</span>
+          <span>Confidence:</span>
           <Slider
             min={0}
             max={1}
@@ -140,8 +244,8 @@ export function EmployeeScheduling() {
         <DateRangePicker date={dateRange} setDate={setDateRange} />
       </div>
 
-      <div className="h-[400px]">
-        {selectedChart === "gantt" && <GanttChart data={filteredData} />}
+      <div className="h-[400px] border rounded-lg p-4">
+        {selectedChart === "gantt" && <GanttChart data={filteredData} dateRange={chartDateRange} />}
         {selectedChart === "bar" && <BarChart data={filteredData} />}
         {selectedChart === "line" && <LineChart data={filteredData} />}
       </div>
