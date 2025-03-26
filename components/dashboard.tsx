@@ -10,31 +10,6 @@ import { SalesForecasting } from "./SalesForecasting";
 import { DemandForecasting } from "./DemandForecasting";
 import { generatePDF } from "@/lib/pdfGenerator";
 
-interface Profile {
-  first_name: string;
-  last_name: string;
-}
-
-interface ScheduleEntry {
-  schedule_id: number;
-  profile_id: number;
-  store_id: number;
-  shift_start: string;
-  shift_end: string;
-  schedule_type: string;
-  status: string;
-}
-
-interface SchedulePrediction {
-  prediction_id: number;
-  profile_id: number;
-  store_id: number;
-  predicted_shift_start: string;
-  predicted_shift_end: string;
-  prediction_date: string;
-  confidence_score: number;
-}
-
 interface SalesEntry {
   id: number;
   product: string;
@@ -43,8 +18,6 @@ interface SalesEntry {
 }
 
 export function Dashboard() {
-  const [scheduleData, setScheduleData] = useState<ScheduleEntry[]>([]);
-  const [schedulePredictions, setSchedulePredictions] = useState<SchedulePrediction[]>([]);
   const [salesData, setSalesData] = useState<SalesEntry[]>([]);
   const supabase = createClientComponentClient();
 
@@ -54,37 +27,7 @@ export function Dashboard() {
 
   async function fetchData() {
     try {
-      // Fetch schedule data
-      const { data: fetchedScheduleData, error: scheduleError } = await supabase
-        .from("schedules")
-        .select("*");
-      
-      console.log("fetchedScheduleData", fetchedScheduleData);
-      
-      if (scheduleError) {
-        console.error(
-          "Error fetching schedule data:",
-          scheduleError.message || scheduleError
-        );
-        return;
-      }
-      
-      setScheduleData(fetchedScheduleData ?? []);
-      
-      // Fetch schedule predictions
-      const { data: fetchedPredictions, error: predictionsError } = await supabase
-        .from("schedule_predictions")
-        .select("*");
-      
-      console.log("schedulePredictions", fetchedPredictions);
-      
-      if (predictionsError) {
-        console.error("Error fetching schedule predictions:", predictionsError);
-      } else {
-        setSchedulePredictions(fetchedPredictions ?? []);
-      }
-      
-      // Fetch sales data
+      // Only fetch sales data now
       const { data: fetchedSalesData, error: salesError } = await supabase
         .from("sales_forecasts")
         .select("*");
@@ -100,7 +43,8 @@ export function Dashboard() {
   }
 
   const handleGenerateDocument = () => {
-    generatePDF(scheduleData, salesData);
+    // You'll need to get schedule data from somewhere else or update this function
+    generatePDF([], salesData);
   };
 
   return (
@@ -125,7 +69,7 @@ export function Dashboard() {
               <CardTitle>Employee Scheduling</CardTitle>
             </CardHeader>
             <CardContent>
-              <EmployeeScheduling data={scheduleData} predictionData={schedulePredictions} />
+              <EmployeeScheduling />
             </CardContent>
           </Card>
         </TabsContent>
