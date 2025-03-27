@@ -1,52 +1,51 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { EmployeeScheduling } from "./EmployeeScheduling"
-import { SalesForecasting } from "./SalesForecasting"
-import { DemandForecasting } from "./DemandForecasting"
-import { generatePDF } from "@/lib/pdfGenerator"
+import { useState, useEffect } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { EmployeeScheduling } from "./EmployeeScheduling";
+import { SalesForecasting } from "./SalesForecasting";
+import { DemandForecasting } from "./DemandForecasting";
+import { generatePDF } from "@/lib/pdfGenerator";
+
+interface SalesEntry {
+  id: number;
+  product: string;
+  predicted_sales: number;
+  date: string;
+}
 
 export function Dashboard() {
-  const [scheduleData, setScheduleData] = useState([])
-  const [salesData, setSalesData] = useState([])
-  const supabase = createClientComponentClient()
+  const [salesData, setSalesData] = useState<SalesEntry[]>([]);
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    fetchData();
+  }, []);
 
   async function fetchData() {
-    // Fetch scheduling data
-    const { data: scheduleData, error: scheduleError } = await supabase.from("schedule_predictions").select(`
-        profile_id,
-        predicted_shift_start,
-        predicted_shift_end,
-        profiles (first_name, last_name)
-      `)
-
-    if (scheduleError) {
-      console.error("Error fetching schedule data:", scheduleError)
-    } else {
-      setScheduleData(scheduleData || [])
-    }
-
-    // Fetch sales data
-    const { data: salesData, error: salesError } = await supabase.from("sales_predictions").select("*")
-
-    if (salesError) {
-      console.error("Error fetching sales data:", salesError)
-    } else {
-      setSalesData(salesData || [])
+    try {
+      // Only fetch sales data now
+      const { data: fetchedSalesData, error: salesError } = await supabase
+        .from("sales_forecasts")
+        .select("*");
+      
+      if (salesError) {
+        console.error("Error fetching sales data:", salesError);
+      } else {
+        setSalesData(fetchedSalesData ?? []);
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching data:", error);
     }
   }
 
   const handleGenerateDocument = () => {
-    generatePDF(scheduleData, salesData)
-  }
+    // You'll need to get schedule data from somewhere else or update this function
+    generatePDF([], salesData);
+  };
 
   return (
     <div className="space-y-4">
@@ -56,9 +55,13 @@ export function Dashboard() {
       </div>
       <Tabs defaultValue="employee-scheduling" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="employee-scheduling">Employee Scheduling</TabsTrigger>
+          <TabsTrigger value="employee-scheduling">
+            Employee Scheduling
+          </TabsTrigger>
           <TabsTrigger value="sales-forecasting">Sales Forecasting</TabsTrigger>
-          <TabsTrigger value="demand-forecasting">Demand Forecasting</TabsTrigger>
+          <TabsTrigger value="demand-forecasting">
+            Demand Forecasting
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="employee-scheduling">
           <Card>
@@ -66,7 +69,7 @@ export function Dashboard() {
               <CardTitle>Employee Scheduling</CardTitle>
             </CardHeader>
             <CardContent>
-              <EmployeeScheduling data={scheduleData} />
+              <EmployeeScheduling />
             </CardContent>
           </Card>
         </TabsContent>
@@ -92,6 +95,5 @@ export function Dashboard() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
-
