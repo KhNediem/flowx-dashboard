@@ -11,12 +11,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { motion } from "framer-motion"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "sonner"
-import GoogleLoginButton from "@/components/auth/google-login-button"
 import Link from "next/link"
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -24,28 +24,35 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!email || !password) {
-      toast.error("Please enter both email and password")
+    if (!email || !password || !confirmPassword) {
+      toast.error("Please fill in all fields")
+      return
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match")
       return
     }
 
     setIsLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
       if (error) {
         toast.error(error.message)
       } else if (data.user) {
-        toast.success("Login successful")
-        router.push("/")
-        router.refresh()
+        toast.success("Account created successfully! Please check your email to confirm your account.")
+        router.push("/login")
       }
     } catch (error) {
-      console.error("Login error:", error)
+      console.error("Signup error:", error)
       toast.error("An unexpected error occurred")
     } finally {
       setIsLoading(false)
@@ -62,8 +69,8 @@ export default function LoginPage() {
     >
       <Card className="w-[350px]">
         <CardHeader>
-          <CardTitle>Login</CardTitle>
-          <CardDescription>Enter your credentials to access your account</CardDescription>
+          <CardTitle>Sign Up</CardTitle>
+          <CardDescription>Create a new account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -83,31 +90,33 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="Create a password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
+            <div className="flex flex-col space-y-1.5">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? "Creating account..." : "Sign Up"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <div className="relative w-full">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-            </div>
-          </div>
-          <GoogleLoginButton />
           <div className="text-center text-sm">
-            Don't have an account?{" "}
-            <Link href="/signup" className="text-primary hover:underline">
-              Sign Up
+            Already have an account?{" "}
+            <Link href="/login" className="text-primary hover:underline">
+              Login
             </Link>
           </div>
         </CardFooter>
