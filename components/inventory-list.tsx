@@ -1,71 +1,121 @@
-"use client"
+"use client";
 
-import React from "react"
+import React from "react";
 
-import { useState, useEffect } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Eye, ChevronRight, ChevronDown, Plus, Pencil, Trash2 } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useForm } from "react-hook-form"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner"
+import { useState, useEffect } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Eye,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface Product {
-  product_id: number
-  product_name: string
-  brand_id: number
-  base_price: number
-  photo_url: string
+  product_id: number;
+  product_name: string;
+  brand_id: number;
+  base_price: number;
+  photo_url: string;
+  product_threshold: number;
 }
 
 interface Store {
-  store_id: number
-  store_name: string
-  address: string
+  store_id: number;
+  store_name: string;
+  address: string;
 }
 
 interface InventoryItem {
-  inventory_id: number
-  store_id: number
-  product_id: number
-  current_quantity: number
-  last_updated: string
-  products: Product
-  stores: Store
+  inventory_id: number;
+  store_id: number;
+  product_id: number;
+  current_quantity: number;
+  last_updated: string;
+  products: Product;
+  stores: Store;
 }
 
 export function InventoryList() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
-  const [expandedStores, setExpandedStores] = useState<number[]>([])
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false)
-  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false)
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null)
-  const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
-  const [stores, setStores] = useState<Store[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [initialLoad, setInitialLoad] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [expandedStores, setExpandedStores] = useState<number[]>([]);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const [selectedInventoryItem, setSelectedInventoryItem] =
+    useState<InventoryItem | null>(null);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [stockFilter, setStockFilter] = useState<"all" | "below" | "above">("all")
 
-  const supabase = createClientComponentClient()
+  const filteredInventoryItems = inventoryItems.filter((item) => {
+    const threshold = item.products?.product_threshold ?? 0
+    if (stockFilter === "below") return item.current_quantity < threshold
+    if (stockFilter === "above") return item.current_quantity >= threshold
+    return true // 'all'
+  })
 
-  const addForm = useForm<Omit<InventoryItem, "inventory_id" | "last_updated" | "products" | "stores">>()
-  const editForm = useForm<Omit<InventoryItem, "last_updated" | "products" | "stores">>()
+  const supabase = createClientComponentClient();
+
+  const addForm =
+    useForm<
+      Omit<
+        InventoryItem,
+        "inventory_id" | "last_updated" | "products" | "stores"
+      >
+    >();
+  const editForm =
+    useForm<Omit<InventoryItem, "last_updated" | "products" | "stores">>();
 
   useEffect(() => {
-    fetchInventory()
-    fetchStores()
-    fetchProducts()
+    fetchInventory();
+    fetchStores();
+    fetchProducts();
 
     // Set initialLoad to false after first load
-    setInitialLoad(false)
-  }, [])
+    setInitialLoad(false);
+  }, []);
 
   async function fetchInventory() {
     const { data, error } = await supabase.from("real_time_inventory").select(`
@@ -79,127 +129,147 @@ export function InventoryList() {
           product_name,
           brand_id,
           base_price,
-          photo_url
+          photo_url,
+          product_threshold
         ),
         stores (
           store_id,
           store_name,
           address
         )
-      `)
+      `);
 
     if (error) {
-      console.error("Error fetching inventory:", error)
+      console.error("Error fetching inventory:", error);
     } else {
-      setInventoryItems(data || [])
+      setInventoryItems(data || []);
 
       // Check for low stock items
-      const lowStockItems = data?.filter((item) => item.current_quantity < 3) || []
+      const lowStockItems =
+        data?.filter((item) => item.current_quantity < 3) || [];
       if (lowStockItems.length > 0 && !initialLoad) {
         toast.error(
-          `Low Stock Alert: ${lowStockItems.length} ${lowStockItems.length === 1 ? "item" : "items"} need attention`,
+          `Low Stock Alert: ${lowStockItems.length} ${
+            lowStockItems.length === 1 ? "item" : "items"
+          } need attention`,
           {
             description: "Some inventory items are running low on stock.",
             duration: 5000,
-          },
-        )
+          }
+        );
       }
     }
   }
 
   async function fetchStores() {
-    const { data, error } = await supabase.from("stores").select("*")
+    const { data, error } = await supabase.from("stores").select("*");
 
     if (error) {
-      console.error("Error fetching stores:", error)
+      console.error("Error fetching stores:", error);
     } else {
-      setStores(data || [])
+      setStores(data || []);
     }
   }
 
   async function fetchProducts() {
-    const { data, error } = await supabase.from("products").select("*")
+    const { data, error } = await supabase.from("products").select("*");
 
     if (error) {
-      console.error("Error fetching products:", error)
+      console.error("Error fetching products:", error);
     } else {
-      setProducts(data || [])
+      setProducts(data || []);
     }
   }
 
-  const groupedInventory = inventoryItems.reduce(
-    (acc, item) => {
-      if (!acc[item.store_id]) {
-        acc[item.store_id] = {
-          store: item.stores,
-          items: [],
-        }
-      }
-      acc[item.store_id].items.push({ ...item, product: item.products })
-      return acc
-    },
-    {} as Record<number, { store: Store; items: (InventoryItem & { product: Product })[] }>,
-  )
+  const groupedInventory = filteredInventoryItems.reduce((acc, item) => {
+    if (!acc[item.store_id]) {
+      acc[item.store_id] = {
+        store: item.stores,
+        items: [],
+      };
+    }
+    acc[item.store_id].items.push({ ...item, product: item.products });
+    return acc;
+  }, {} as Record<number, { store: Store; items: (InventoryItem & { product: Product })[] }>);
 
   const toggleStoreExpansion = (storeId: number) => {
-    setExpandedStores((prev) => (prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]))
-  }
+    setExpandedStores((prev) =>
+      prev.includes(storeId)
+        ? prev.filter((id) => id !== storeId)
+        : [...prev, storeId]
+    );
+  };
 
   const handleProductView = (product: Product) => {
-    setSelectedProduct(product)
-    setIsProductModalOpen(true)
-  }
+    setSelectedProduct(product);
+    setIsProductModalOpen(true);
+  };
 
   const handleStoreView = (store: Store) => {
-    setSelectedStore(store)
-    setIsStoreModalOpen(true)
-  }
+    setSelectedStore(store);
+    setIsStoreModalOpen(true);
+  };
 
   const handleAddInventory = async (
-    data: Omit<InventoryItem, "inventory_id" | "last_updated" | "products" | "stores">,
+    data: Omit<
+      InventoryItem,
+      "inventory_id" | "last_updated" | "products" | "stores"
+    >
   ) => {
-    const { error } = await supabase.from("real_time_inventory").insert([data])
+    const { error } = await supabase.from("real_time_inventory").insert([data]);
 
     if (error) {
-      console.error("Error adding inventory item:", error)
-      toast.error("Failed to add inventory item")
+      console.error("Error adding inventory item:", error);
+      toast.error("Failed to add inventory item");
     } else {
-      setIsAddModalOpen(false)
-      fetchInventory()
-      toast.success("Inventory item added successfully")
+      setIsAddModalOpen(false);
+      fetchInventory();
+      toast.success("Inventory item added successfully");
     }
-  }
+  };
 
-  const handleEditInventory = async (data: Omit<InventoryItem, "last_updated" | "products" | "stores">) => {
-    const { error } = await supabase.from("real_time_inventory").update(data).eq("inventory_id", data.inventory_id)
+  const handleEditInventory = async (
+    data: Omit<InventoryItem, "last_updated" | "products" | "stores">
+  ) => {
+    const { error } = await supabase
+      .from("real_time_inventory")
+      .update(data)
+      .eq("inventory_id", data.inventory_id);
 
     if (error) {
-      console.error("Error updating inventory item:", error)
-      toast.error("Failed to update inventory item")
+      console.error("Error updating inventory item:", error);
+      toast.error("Failed to update inventory item");
     } else {
-      setIsEditModalOpen(false)
-      fetchInventory()
-      toast.success("Inventory item updated successfully")
+      setIsEditModalOpen(false);
+      fetchInventory();
+      toast.success("Inventory item updated successfully");
     }
-  }
+  };
 
   const handleDeleteInventory = async (inventoryId: number) => {
-    const { error } = await supabase.from("real_time_inventory").delete().eq("inventory_id", inventoryId)
+    const { error } = await supabase
+      .from("real_time_inventory")
+      .delete()
+      .eq("inventory_id", inventoryId);
 
     if (error) {
-      console.error("Error deleting inventory item:", error)
-      toast.error("Failed to delete inventory item")
+      console.error("Error deleting inventory item:", error);
+      toast.error("Failed to delete inventory item");
     } else {
-      fetchInventory()
-      toast.success("Inventory item deleted successfully")
+      fetchInventory();
+      toast.success("Inventory item deleted successfully");
     }
-  }
+  };
 
   const InventoryForm = ({
     form,
     onSubmit,
     dialogTitle,
-  }: { form: any; onSubmit: (data: any) => void; dialogTitle: string }) => (
+  }: {
+    form: any;
+    onSubmit: (data: any) => void;
+    dialogTitle: string;
+  }) => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
@@ -208,7 +278,10 @@ export function InventoryList() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Store</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value?.toString()}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a store" />
@@ -216,7 +289,10 @@ export function InventoryList() {
                 </FormControl>
                 <SelectContent>
                   {stores.map((store) => (
-                    <SelectItem key={store.store_id} value={store.store_id.toString()}>
+                    <SelectItem
+                      key={store.store_id}
+                      value={store.store_id.toString()}
+                    >
                       {store.store_name}
                     </SelectItem>
                   ))}
@@ -232,7 +308,10 @@ export function InventoryList() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Product</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value?.toString()}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a product" />
@@ -240,7 +319,10 @@ export function InventoryList() {
                 </FormControl>
                 <SelectContent>
                   {products.map((product) => (
-                    <SelectItem key={product.product_id} value={product.product_id.toString()}>
+                    <SelectItem
+                      key={product.product_id}
+                      value={product.product_id.toString()}
+                    >
                       {product.product_name}
                     </SelectItem>
                   ))}
@@ -266,21 +348,36 @@ export function InventoryList() {
         <Button type="submit">{dialogTitle}</Button>
       </form>
     </Form>
-  )
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
+      {/* Left side: Search + Filter */}
+      <div className="flex items-center gap-2">
         <Input
           placeholder="Search by product or store"
           className="max-w-xs"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <Button onClick={() => setIsAddModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Inventory
-        </Button>
+        <Select value={stockFilter} onValueChange={(value) => setStockFilter(value as "all" | "below" | "above")}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by stock" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Inventory</SelectItem>
+            <SelectItem value="below">Below Threshold</SelectItem>
+            <SelectItem value="above">Above Threshold</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Right side: Add Inventory Button */}
+      <Button onClick={() => setIsAddModalOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" /> Add Inventory
+      </Button>
+    </div>
 
       <div className="rounded-md border">
         <Table>
@@ -294,61 +391,108 @@ export function InventoryList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {Object.entries(groupedInventory).map(([storeId, { store, items }]) => (
-              <React.Fragment key={storeId}>
-                {store ? (
-                  <TableRow className="bg-muted/50">
-                    <TableCell colSpan={5}>
-                      <Button variant="ghost" onClick={() => toggleStoreExpansion(store.store_id)} className="p-0">
-                        {expandedStores.includes(store.store_id) ? (
-                          <ChevronDown className="mr-2 h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="mr-2 h-4 w-4" />
-                        )}
-                        {store.store_name}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleStoreView(store)} className="ml-2">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5}>Error: Store data is missing</TableCell>
-                  </TableRow>
-                )}
-                {expandedStores.includes(Number.parseInt(storeId)) &&
-                  items.map((item) => (
-                    <TableRow key={item.inventory_id} className={item.current_quantity < 3 ? "bg-destructive/10" : ""}>
-                      <TableCell></TableCell>
-                      <TableCell>{item.product.product_name}</TableCell>
-                      <TableCell className={item.current_quantity < 3 ? "font-bold text-destructive" : ""}>
-                        {item.current_quantity}
-                      </TableCell>
-                      <TableCell>{new Date(item.last_updated).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => handleProductView(item.product)}>
-                          <Eye className="h-4 w-4" />
+            {Object.entries(groupedInventory).map(
+              ([storeId, { store, items }]) => (
+                <React.Fragment key={storeId}>
+                  {store ? (
+                    <TableRow className="bg-muted/50">
+                      <TableCell colSpan={5}>
+                        <Button
+                          variant="ghost"
+                          onClick={() => toggleStoreExpansion(store.store_id)}
+                          className="p-0"
+                        >
+                          {expandedStores.includes(store.store_id) ? (
+                            <ChevronDown className="mr-2 h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="mr-2 h-4 w-4" />
+                          )}
+                          {store.store_name}
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            setSelectedInventoryItem(item)
-                            editForm.reset(item)
-                            setIsEditModalOpen(true)
-                          }}
+                          onClick={() => handleStoreView(store)}
+                          className="ml-2"
                         >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteInventory(item.inventory_id)}>
-                          <Trash2 className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
-              </React.Fragment>
-            ))}
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        Error: Store data is missing
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {expandedStores.includes(Number.parseInt(storeId)) &&
+                    items.map((item) => (
+                      <TableRow
+                        key={item.inventory_id}
+                        className={
+                          item.current_quantity < item.product.product_threshold
+                            ? "bg-destructive/10"
+                            : ""
+                        }
+                      >
+                        <TableCell></TableCell>
+                        <TableCell>{item.product.product_name}</TableCell>
+                        <TableCell
+                          className={
+                            item.current_quantity <
+                            item.product.product_threshold
+                              ? "font-bold text-destructive"
+                              : ""
+                          }
+                        >
+                          <div className="flex items-center gap-2">
+                            {item.current_quantity}
+                            {item.current_quantity <
+                              item.product.product_threshold && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">
+                                Low
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(item.last_updated).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleProductView(item.product)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedInventoryItem(item);
+                              editForm.reset(item);
+                              setIsEditModalOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleDeleteInventory(item.inventory_id)
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </React.Fragment>
+              )
+            )}
           </TableBody>
         </Table>
       </div>
@@ -368,7 +512,8 @@ export function InventoryList() {
                   <strong>Brand ID:</strong> {selectedProduct.brand_id}
                 </p>
                 <p>
-                  <strong>Base Price:</strong> ${selectedProduct.base_price.toFixed(2)}
+                  <strong>Base Price:</strong> $
+                  {selectedProduct.base_price.toFixed(2)}
                 </p>
                 {selectedProduct.photo_url && (
                   <img
@@ -408,7 +553,11 @@ export function InventoryList() {
           <DialogHeader>
             <DialogTitle>Add Inventory Item</DialogTitle>
           </DialogHeader>
-          <InventoryForm form={addForm} onSubmit={handleAddInventory} dialogTitle="Add Item" />
+          <InventoryForm
+            form={addForm}
+            onSubmit={handleAddInventory}
+            dialogTitle="Add Item"
+          />
         </DialogContent>
       </Dialog>
 
@@ -417,10 +566,13 @@ export function InventoryList() {
           <DialogHeader>
             <DialogTitle>Edit Inventory Item</DialogTitle>
           </DialogHeader>
-          <InventoryForm form={editForm} onSubmit={handleEditInventory} dialogTitle="Update Item" />
+          <InventoryForm
+            form={editForm}
+            onSubmit={handleEditInventory}
+            dialogTitle="Update Item"
+          />
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
-
