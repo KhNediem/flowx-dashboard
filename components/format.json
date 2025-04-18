@@ -1,4 +1,4 @@
-
+fetchedScheduleData:
 [
     {
         "schedule_id": 1,
@@ -89,5 +89,98 @@
         "shift_end": "2025-03-14T16:00:00",
         "schedule_type": "regular",
         "status": "pending"
+    }
+]
+schedulePredictions:
+[
+    {
+        "prediction_id": 1,
+        "profile_id": 1,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-15T08:00:00",
+        "predicted_shift_end": "2025-03-15T16:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.92
+    },
+    {
+        "prediction_id": 2,
+        "profile_id": 2,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-15T16:00:00",
+        "predicted_shift_end": "2025-03-16T00:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.88
+    },
+    {
+        "prediction_id": 3,
+        "profile_id": 3,
+        "store_id": 2,
+        "predicted_shift_start": "2025-03-15T09:00:00",
+        "predicted_shift_end": "2025-03-15T17:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.76
+    },
+    {
+        "prediction_id": 4,
+        "profile_id": 4,
+        "store_id": 2,
+        "predicted_shift_start": "2025-03-15T07:00:00",
+        "predicted_shift_end": "2025-03-15T15:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.81
+    },
+    {
+        "prediction_id": 5,
+        "profile_id": 5,
+        "store_id": 2,
+        "predicted_shift_start": "2025-03-16T09:00:00",
+        "predicted_shift_end": "2025-03-16T17:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.65
+    },
+    {
+        "prediction_id": 6,
+        "profile_id": 5,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-15T10:00:00",
+        "predicted_shift_end": "2025-03-15T18:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.79
+    },
+    {
+        "prediction_id": 7,
+        "profile_id": 4,
+        "store_id": 2,
+        "predicted_shift_start": "2025-03-16T07:00:00",
+        "predicted_shift_end": "2025-03-16T15:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.86
+    },
+    {
+        "prediction_id": 8,
+        "profile_id": 3,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-16T08:00:00",
+        "predicted_shift_end": "2025-03-16T16:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.72
+    },
+    {
+        "prediction_id": 9,
+        "profile_id": 1,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-16T08:00:00",
+        "predicted_shift_end": "2025-03-16T16:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.91
+    },
+    {
+        "prediction_id": 10,
+        "profile_id": 2,
+        "store_id": 1,
+        "predicted_shift_start": "2025-03-17T16:00:00",
+        "predicted_shift_end": "2025-03-18T00:00:00",
+        "prediction_date": "2025-03-01T12:00:00",
+        "confidence_score": 0.85
     }
 ]
