@@ -66,7 +66,7 @@ export default function LoginPage() {
           <CardDescription>Enter your credentials to access your account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" role="form">
             <div className="flex flex-col space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -75,7 +75,7 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={process.env.NODE_ENV === 'production'}
               />
             </div>
             <div className="flex flex-col space-y-1.5">
@@ -86,7 +86,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                required={process.env.NODE_ENV === 'production'}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
