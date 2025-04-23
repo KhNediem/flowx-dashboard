@@ -97,7 +97,7 @@ export function Dashboard() {
               <CardTitle>Sales Forecasting</CardTitle>
             </CardHeader>
             <CardContent>
-              <SalesForecasting data={salesData} />
+              <SalesForecasting />
             </CardContent>
           </Card>
         </TabsContent>

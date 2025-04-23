@@ -1,101 +1,205 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DateRangePicker } from "@/components/ui/date-range-picker"
-import { LineChart } from "./charts/LineChart"
-import { ScatterPlot } from "./charts/ScatterPlot"
-import { TimeSeriesComparison } from "./charts/TimeSeriesComparison"
+import React, { useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CircularProgress } from "@mui/material";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
-// Static data
-const staticSalesData = [
-  { store_id: 1, predicted_sales: 1000, confidence_score: 0.9, prediction_date: "2023-06-01", actual_sales: 980 },
-  { store_id: 1, predicted_sales: 1200, confidence_score: 0.85, prediction_date: "2023-06-02", actual_sales: 1150 },
-  { store_id: 2, predicted_sales: 800, confidence_score: 0.8, prediction_date: "2023-06-01", actual_sales: 820 },
-  { store_id: 2, predicted_sales: 900, confidence_score: 0.75, prediction_date: "2023-06-02", actual_sales: 880 },
-  { store_id: 3, predicted_sales: 1500, confidence_score: 0.95, prediction_date: "2023-06-01", actual_sales: 1520 },
-  { store_id: 3, predicted_sales: 1600, confidence_score: 0.9, prediction_date: "2023-06-02", actual_sales: 1580 },
-]
+// Only one store, but keep logic scalable
+const STORE_ID = 31;
 
-const staticStores = [
-  { store_id: 1, store_name: "Downtown Store" },
-  { store_id: 2, store_name: "Uptown Store" },
-  { store_id: 3, store_name: "Suburban Store" },
-]
+// Helper: Group by date (1 point per date: last value per date)
+function groupByDate(data: any[]) {
+  const map = new Map();
+  data.forEach((row) => {
+    map.set(row.date, row.units); // last value per date will remain
+  });
+  return Array.from(map.entries())
+    .map(([date, units]) => ({ date, units }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export function SalesForecasting() {
-  const [salesData, setSalesData] = useState(staticSalesData)
-  const [stores, setStores] = useState(staticStores)
-  const [selectedStore, setSelectedStore] = useState<number | null>(null)
-  const [dateRange, setDateRange] = useState({ from: new Date(2023, 5, 1), to: new Date(2023, 6, 1) })
-  const [selectedChart, setSelectedChart] = useState("line")
+  const supabase = createClientComponentClient();
 
-  const supabase = createClientComponentClient()
+  const [productIds, setProductIds] = useState<number[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
+  const [forecastData, setForecastData] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingGraph, setLoadingGraph] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  // Get available products for the store
+  React.useEffect(() => {
+    setLoadingProducts(true);
+    setProductIds([]);
+    setSelectedProduct(null);
+    setForecastData([]);
+    setHasSearched(false);
+    supabase
+      .from("sales_forecasts")
+      .select("product_id")
+      .eq("store_id", STORE_ID)
+      .then(({ data, error }) => {
+        if (error) {
+          setError("Failed to load products.");
+          setProductIds([]);
+        } else {
+          const uniqueIds = Array.from(
+            new Set((data ?? []).map((row: any) => row.product_id))
+          );
+          setProductIds(uniqueIds);
+        }
+        setLoadingProducts(false);
+      });
+    // eslint-disable-next-line
+  }, []);
 
-  async function fetchData() {
-    // Fetch sales data
-    const { data: fetchedSalesData, error: salesError } = await supabase.from("sales_predictions").select("*")
-    if (salesError) {
-      console.error("Error fetching sales data:", salesError)
-    } else {
-      setSalesData(fetchedSalesData && fetchedSalesData.length > 0 ? fetchedSalesData : staticSalesData)
+  // Fetch forecast when button is clicked
+  const handleGenerateGraph = async () => {
+    if (!selectedProduct) return;
+    setLoadingGraph(true);
+    setError(null);
+    setHasSearched(true);
+    try {
+      const { data, error } = await supabase
+        .from("sales_forecasts")
+        .select("*")
+        .eq("store_id", STORE_ID)
+        .eq("product_id", selectedProduct)
+        .order("date", { ascending: true });
+      if (error) throw error;
+      setForecastData(data ?? []);
+    } catch (err: any) {
+      setError("Failed to load forecast data.");
+      setForecastData([]);
+    } finally {
+      setLoadingGraph(false);
     }
+  };
 
-    // Fetch store data
-    const { data: storeData, error: storeError } = await supabase.from("stores").select("store_id, store_name")
-    if (storeError) {
-      console.error("Error fetching store data:", storeError)
-    } else {
-      setStores(storeData && storeData.length > 0 ? storeData : staticStores)
-    }
-  }
+  // Prepare graph data: group by date, 1 point per date
+  const graphData = groupByDate(forecastData);
 
-  const filteredData = salesData.filter(
-    (sale) =>
-      (!selectedStore || sale.store_id === selectedStore) &&
-      new Date(sale.prediction_date) >= dateRange.from &&
-      new Date(sale.prediction_date) <= dateRange.to,
-  )
+  // Debug: log what the chart will show
+  console.log("forecastData (raw):", forecastData);
+  console.log("graphData (by date):", graphData);
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Select onValueChange={(value) => setSelectedStore(Number(value))}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select Store" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stores</SelectItem>
-            {stores.map((store) => (
-              <SelectItem key={store.store_id} value={store.store_id.toString()}>
-                {store.store_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={(value) => setSelectedChart(value)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select Chart Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="line">Sales Trends</SelectItem>
-            <SelectItem value="scatter">Confidence vs Sales</SelectItem>
-            <SelectItem value="comparison">Predicted vs Actual</SelectItem>
-          </SelectContent>
-        </Select>
-        <DateRangePicker date={dateRange} setDate={setDateRange} />
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-4 items-center">
+        {/* Store Selection: hardcoded for now */}
+        <div className="w-40">
+          <Select value={String(STORE_ID)} disabled>
+            <SelectTrigger>
+              <SelectValue placeholder="Store" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={String(STORE_ID)}>Store {STORE_ID}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Product Selection */}
+        <div className="w-40">
+          <Select
+            value={selectedProduct ? String(selectedProduct) : ""}
+            disabled={loadingProducts}
+            onValueChange={(val) => setSelectedProduct(Number(val))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Product" />
+            </SelectTrigger>
+            <SelectContent>
+              {productIds.map((pid) => (
+                <SelectItem key={pid} value={String(pid)}>
+                  Product {pid}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Generate Graph Button */}
+        <Button
+          onClick={handleGenerateGraph}
+          disabled={!selectedProduct || loadingGraph}
+          className="min-w-[170px]"
+        >
+          {loadingGraph ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            "Generate Graph"
+          )}
+        </Button>
       </div>
+      {/* Error Message */}
+      {error && (
+        <div className="text-red-500 text-sm mt-2">{error}</div>
+      )}
 
-      <div className="h-[400px]">
-        {selectedChart === "line" && <LineChart data={filteredData} />}
-        {selectedChart === "scatter" && <ScatterPlot data={filteredData} />}
-        {selectedChart === "comparison" && <TimeSeriesComparison data={filteredData} />}
+      {/* Chart Section */}
+      <div className="h-[380px] w-full">
+        {!hasSearched ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            Please select a product and click "Generate Graph" to view sales forecasts.
+          </div>
+        ) : loadingGraph ? (
+          <div className="flex items-center justify-center h-full">
+            <CircularProgress />
+          </div>
+        ) : !graphData.length ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            No forecast data found for the selected product.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={graphData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(date) => date.slice(5)}
+                minTickGap={10}
+              />
+              <YAxis
+                label={{
+                  value: "Predicted Units",
+                  angle: -90,
+                  position: "insideLeft",
+                  fontSize: 12,
+                }}
+              />
+              <Tooltip
+                labelFormatter={(date) => `Date: ${date}`}
+                formatter={(units: number) => [`${units}`, "Predicted Units"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="units"
+                name="Predicted Sales"
+                stroke="#1976d2"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
-  )
+  );
 }
