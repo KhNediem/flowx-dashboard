@@ -10,8 +10,7 @@ import FullCalendar from "@fullcalendar/react"
 import timeGridPlugin from "@fullcalendar/timegrid"
 import interactionPlugin from "@fullcalendar/interaction"
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
-import { Tooltip } from "@/components/ui/tooltip"
-import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 export default function ShiftsManagement() {
   const [shifts, setShifts] = useState([])
@@ -23,6 +22,7 @@ export default function ShiftsManagement() {
   const [currentView, setCurrentView] = useState("timeGridWeek")
   const calendarRef = React.useRef(null)
   const supabase = createClientComponentClient()
+  const tooltipRefs = React.useRef({})
 
   // Navigation functions
   const next = () => {
@@ -49,6 +49,18 @@ export default function ShiftsManagement() {
     setCurrentView(view)
   }
 
+  // Clean up tooltips when component unmounts
+  useEffect(() => {
+    return () => {
+      // Remove any lingering tooltips when component unmounts
+      Object.values(tooltipRefs.current).forEach((tooltip) => {
+        if (tooltip && document.body.contains(tooltip)) {
+          document.body.removeChild(tooltip)
+        }
+      })
+    }
+  }, [])
+
   // Fetch shifts and employees data
   useEffect(() => {
     async function fetchData() {
@@ -64,7 +76,9 @@ export default function ShiftsManagement() {
         }
 
         // Fetch schedule predictions
-        const { data: predictionsData, error: predictionsError } = await supabase.from("schedule_predictions").select("*")
+        const { data: predictionsData, error: predictionsError } = await supabase
+          .from("schedule_predictions")
+          .select("*")
 
         if (predictionsError) {
           console.error("Error fetching schedule predictions:", predictionsError)
@@ -105,15 +119,15 @@ export default function ShiftsManagement() {
         let backgroundColor, textColor, borderColor
 
         if (shift.schedule_type === "overtime") {
-          backgroundColor = "rgba(180, 130, 50, 0.25)" 
+          backgroundColor = "rgba(180, 130, 50, 0.25)"
           borderColor = "rgba(180, 130, 50, 0.6)"
           textColor = "#e0c080"
         } else if (shift.schedule_type === "part-time") {
-          backgroundColor = "rgba(70, 150, 130, 0.25)" 
+          backgroundColor = "rgba(70, 150, 130, 0.25)"
           borderColor = "rgba(70, 150, 130, 0.6)"
           textColor = "#80d0c0"
         } else {
-          backgroundColor = "rgba(80, 120, 180, 0.25)" 
+          backgroundColor = "rgba(80, 120, 180, 0.25)"
           borderColor = "rgba(80, 120, 180, 0.6)"
           textColor = "#90b0e0"
         }
@@ -132,11 +146,11 @@ export default function ShiftsManagement() {
             profileId: shift.profile_id,
             description: shift.description || "",
             location: shift.location || "",
-            isPrediction: false
+            isPrediction: false,
           },
         }
       }),
-    
+
     // Prediction shifts (with different styling)
     ...predictionSchedules
       .filter((prediction) => !selectedEmployee || prediction.profile_id === selectedEmployee)
@@ -164,19 +178,18 @@ export default function ShiftsManagement() {
             predictedType: prediction.predicted_type,
             profileId: prediction.profile_id,
             basedOn: prediction.based_on_data || "Historical patterns",
-            isPrediction: true
+            isPrediction: true,
           },
         }
-      })
+      }),
   ]
 
   // Log the generated calendar events for debugging
   useEffect(() => {
     if (predictionSchedules.length > 0) {
-      console.log("Prediction schedules:", predictionSchedules);
-      console.log("Generated calendar events:", calendarEvents);
+      console.log("Prediction schedules:", predictionSchedules)
     }
-  }, [predictionSchedules, calendarEvents]);
+  }, [predictionSchedules])
 
   // Handle calendar date click (for creating new shifts)
   const handleDateClick = (info) => {
@@ -196,12 +209,89 @@ export default function ShiftsManagement() {
 
     const calendarApi = calendarRef.current.getApi()
     const viewRange = calendarApi.currentData.dateProfile.currentRange
-    
+
     if (currentView === "timeGridDay") {
       return format(viewRange.start, "EEEE, MMMM d, yyyy")
     } else {
       return `${format(viewRange.start, "MMMM d")} - ${format(viewRange.end, "MMMM d, yyyy")}`
     }
+  }
+
+  // Create a more reliable tooltip
+  const createTooltip = (eventEl, event) => {
+    const props = event.extendedProps
+    const eventId = event.id
+
+    // Remove existing tooltip if it exists
+    if (tooltipRefs.current[eventId] && document.body.contains(tooltipRefs.current[eventId])) {
+      document.body.removeChild(tooltipRefs.current[eventId])
+    }
+
+    // Create tooltip content based on event type
+    let tooltipContent = ""
+
+    if (props.isPrediction) {
+      // Prediction event tooltip
+      tooltipContent = `
+        <div class="p-3 max-w-xs bg-zinc-800 rounded-md shadow-lg text-zinc-200 text-xs border border-zinc-700">
+          <div class="font-bold mb-1 text-sm">${event.title}</div>
+          <div class="mb-1">Confidence: ${(props.confidenceScore * 100).toFixed(1)}%</div>
+          <div class="mb-1">Type: ${props.predictedType || "Regular"}</div>
+          <div class="text-zinc-400 text-xs">Based on: ${props.basedOn}</div>
+          <div class="text-amber-300 text-xs mt-1">⚠️ AI Predicted Shift</div>
+        </div>
+      `
+    } else {
+      // Regular shift tooltip
+      tooltipContent = `
+        <div class="p-3 max-w-xs bg-zinc-800 rounded-md shadow-lg text-zinc-200 text-xs border border-zinc-700">
+          <div class="font-bold mb-1 text-sm">${event.title}</div>
+          <div class="mb-1">Time: ${event.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${event.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+          ${props.location ? `<div class="mb-1">Location: ${props.location}</div>` : ""}
+          ${props.status ? `<div>Status: ${props.status}</div>` : ""}
+          ${props.description ? `<div class="mt-1 text-zinc-400">${props.description}</div>` : ""}
+        </div>
+      `
+    }
+
+    // Create tooltip element
+    const tooltip = document.createElement("div")
+    tooltip.innerHTML = tooltipContent
+    tooltip.className = "fixed z-[9999] hidden shadow-xl"
+    tooltip.style.pointerEvents = "none" // Prevent tooltip from blocking mouse events
+    document.body.appendChild(tooltip)
+
+    // Store reference to tooltip
+    tooltipRefs.current[eventId] = tooltip
+
+    return tooltip
+  }
+
+  // Position tooltip relative to event
+  const positionTooltip = (tooltip, eventEl) => {
+    const rect = eventEl.getBoundingClientRect()
+    const scrollTop = window.scrollY || document.documentElement.scrollTop
+    const scrollLeft = window.scrollX || document.documentElement.scrollLeft
+
+    // Position to the right of the event by default
+    let left = rect.right + 10 + scrollLeft
+    let top = rect.top + scrollTop
+
+    // Check if tooltip would go off the right edge of the screen
+    const tooltipRect = tooltip.getBoundingClientRect()
+    if (left + tooltipRect.width > window.innerWidth) {
+      // Position to the left of the event instead
+      left = rect.left - tooltipRect.width - 10 + scrollLeft
+    }
+
+    // Check if tooltip would go off the bottom of the screen
+    if (top + tooltipRect.height > window.innerHeight + scrollTop) {
+      // Adjust top position to keep tooltip within viewport
+      top = window.innerHeight + scrollTop - tooltipRect.height - 10
+    }
+
+    tooltip.style.left = `${left}px`
+    tooltip.style.top = `${top}px`
   }
 
   return (
@@ -216,9 +306,11 @@ export default function ShiftsManagement() {
                   variant={currentView === "timeGridDay" ? "default" : "outline"}
                   size="sm"
                   onClick={() => changeView("timeGridDay")}
-                  className={currentView === "timeGridDay" 
-                    ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                    : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300"}
+                  className={
+                    currentView === "timeGridDay"
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                  }
                 >
                   Day
                 </Button>
@@ -226,9 +318,11 @@ export default function ShiftsManagement() {
                   variant={currentView === "timeGridWeek" ? "default" : "outline"}
                   size="sm"
                   onClick={() => changeView("timeGridWeek")}
-                  className={currentView === "timeGridWeek" 
-                    ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                    : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300"}
+                  className={
+                    currentView === "timeGridWeek"
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                  }
                 >
                   Week
                 </Button>
@@ -277,7 +371,11 @@ export default function ShiftsManagement() {
                     All Employees
                   </SelectItem>
                   {employees.map((employee) => (
-                    <SelectItem key={employee.profile_id} value={employee.profile_id.toString()} className="text-zinc-300">
+                    <SelectItem
+                      key={employee.profile_id}
+                      value={employee.profile_id.toString()}
+                      className="text-zinc-300"
+                    >
                       {`${employee.first_name || ""} ${employee.last_name || ""}`}
                     </SelectItem>
                   ))}
@@ -336,11 +434,13 @@ export default function ShiftsManagement() {
                     font-size: 0.75rem;
                   }
                   
+                  /* Add margin between events */
                   .calendar-dark .fc-event {
-                    border-radius: 3px;
-                    padding: 1px 2px;
+                    border-radius: 4px;
+                    padding: 1px 3px;
                     font-size: 0.8rem;
                     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+                    margin: 1px 2px !important;
                   }
                   
                   .calendar-dark .fc-event-title {
@@ -371,6 +471,7 @@ export default function ShiftsManagement() {
                     height: 100%;
                     width: 100%;
                     overflow: hidden;
+                    padding: 1px;
                   }
                   
                   .vertical-text {
@@ -413,6 +514,24 @@ export default function ShiftsManagement() {
                     border-style: dashed !important;
                     border-width: 1px !important;
                   }
+                  
+                  /* Prevent events from overlapping */
+                  .fc-timegrid-event-harness {
+                    margin-left: 1px !important;
+                    margin-right: 1px !important;
+                  }
+                  
+                  /* Custom tooltip styling */
+                  .shift-tooltip {
+                    position: fixed;
+                    z-index: 9999;
+                    background-color: #27272a;
+                    border: 1px solid #3f3f46;
+                    border-radius: 6px;
+                    padding: 8px;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                    pointer-events: none;
+                  }
                 `}</style>
                 <div className="calendar-dark h-full">
                   <FullCalendar
@@ -440,129 +559,105 @@ export default function ShiftsManagement() {
                       hour12: false,
                     }}
                     dayHeaderFormat={{
-                      weekday: currentView === "timeGridDay" ? 'long' : 'short',
-                      month: 'numeric',
-                      day: 'numeric',
-                      omitCommas: true
+                      weekday: currentView === "timeGridDay" ? "long" : "short",
+                      month: "numeric",
+                      day: "numeric",
+                      omitCommas: true,
                     }}
                     eventDidMount={(info) => {
                       // Add dashed border for prediction events
                       if (info.event.extendedProps.isPrediction) {
-                        info.el.classList.add('prediction-event');
+                        info.el.classList.add("prediction-event")
                       }
-                      
-                      // Add tooltips to all events
-                      const eventEl = info.el;
-                      const event = info.event;
-                      const props = event.extendedProps;
-                      
-                      // Create tooltip content based on event type
-                      let tooltipContent = "";
-                      
-                      if (props.isPrediction) {
-                        // Prediction event tooltip
-                        tooltipContent = `
-                          <div class="p-2 max-w-xs bg-zinc-800 rounded shadow-lg text-zinc-200 text-xs">
-                            <div class="font-bold mb-1">${event.title}</div>
-                            <div class="mb-1">Confidence: ${(props.confidenceScore * 100).toFixed(1)}%</div>
-                            <div class="mb-1">Type: ${props.predictedType || 'Regular'}</div>
-                            <div class="text-zinc-400 text-xs">Based on: ${props.basedOn}</div>
-                            <div class="text-amber-300 text-xs mt-1">⚠️ AI Predicted Shift</div>
-                          </div>
-                        `;
-                      } else {
-                        // Regular shift tooltip
-                        tooltipContent = `
-                          <div class="p-2 max-w-xs bg-zinc-800 rounded shadow-lg text-zinc-200 text-xs">
-                            <div class="font-bold mb-1">${event.title}</div>
-                            <div class="mb-1">Time: ${event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${event.end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                            ${props.location ? `<div class="mb-1">Location: ${props.location}</div>` : ''}
-                            ${props.status ? `<div>Status: ${props.status}</div>` : ''}
-                            ${props.description ? `<div class="mt-1 text-zinc-400">${props.description}</div>` : ''}
-                          </div>
-                        `;
-                      }
-                      
-                      // Simple tooltip implementation using title attribute
-                      // For a more sophisticated tooltip, you'd use a tooltip library or component
-                      const tooltip = document.createElement('div');
-                      tooltip.innerHTML = tooltipContent;
-                      tooltip.className = 'absolute z-50 hidden';
-                      document.body.appendChild(tooltip);
-                      
-                      eventEl.addEventListener('mouseenter', () => {
-                        const rect = eventEl.getBoundingClientRect();
-                        tooltip.style.left = `${rect.right + 10}px`;
-                        tooltip.style.top = `${rect.top}px`;
-                        tooltip.classList.remove('hidden');
-                      });
-                      
-                      eventEl.addEventListener('mouseleave', () => {
-                        tooltip.classList.add('hidden');
-                      });
-                      
-                      info.el.addEventListener('mouseleave', () => {
-                        document.body.removeChild(tooltip);
-                      }, { once: true });
+
+                      // Improved tooltip implementation
+                      const eventEl = info.el
+                      const event = info.event
+
+                      // Create tooltip when mouse enters event
+                      eventEl.addEventListener("mouseenter", () => {
+                        const tooltip = createTooltip(eventEl, event)
+                        tooltip.classList.remove("hidden")
+                        positionTooltip(tooltip, eventEl)
+
+                        // Update tooltip position on scroll
+                        const handleScroll = () => {
+                          if (!tooltip.classList.contains("hidden")) {
+                            positionTooltip(tooltip, eventEl)
+                          }
+                        }
+
+                        window.addEventListener("scroll", handleScroll)
+
+                        // Clean up scroll listener when mouse leaves
+                        eventEl.addEventListener(
+                          "mouseleave",
+                          () => {
+                            window.removeEventListener("scroll", handleScroll)
+                            tooltip.classList.add("hidden")
+                          },
+                          { once: true },
+                        )
+                      })
                     }}
                     eventContent={(eventInfo) => {
-                      const eventEl = document.createElement('div');
-                      eventEl.className = 'event-container';
-                      
+                      const eventEl = document.createElement("div")
+                      eventEl.className = "event-container"
+
                       // Calculate if we need vertical text based on event duration and title length
-                      const durationInMinutes = (eventInfo.event.end - eventInfo.event.start) / (1000 * 60);
-                      const title = eventInfo.event.title;
-                      
+                      const durationInMinutes = (eventInfo.event.end - eventInfo.event.start) / (1000 * 60)
+                      const title = eventInfo.event.title
+
                       // Define a threshold - if the event is short or the title is long, use vertical text
-                      const needsVerticalText = durationInMinutes < 60 || title.length > 15;
-                      
+                      const needsVerticalText = durationInMinutes < 60 || title.length > 15
+
                       if (needsVerticalText) {
                         // Vertical layout
-                        const verticalDiv = document.createElement('div');
-                        verticalDiv.className = 'vertical-text';
-                        
-                        const timeDiv = document.createElement('div');
-                        timeDiv.className = 'text-xs font-medium';
-                        timeDiv.innerText = eventInfo.timeText;
-                        
-                        const titleDiv = document.createElement('div');
-                        titleDiv.className = 'text-xs font-medium mt-1';
-                        titleDiv.innerText = title;
-                        
+                        const verticalDiv = document.createElement("div")
+                        verticalDiv.className = "vertical-text"
+
+                        const timeDiv = document.createElement("div")
+                        timeDiv.className = "text-xs font-medium"
+                        timeDiv.innerText = eventInfo.timeText
+
+                        const titleDiv = document.createElement("div")
+                        titleDiv.className = "text-xs font-medium mt-1"
+                        titleDiv.innerText = title
+
                         // Add prediction indicator if applicable
                         if (eventInfo.event.extendedProps.isPrediction) {
-                          const indicatorDiv = document.createElement('div');
-                          indicatorDiv.className = 'text-xs mt-1';
-                          indicatorDiv.innerText = '(Predicted)';
-                          verticalDiv.appendChild(indicatorDiv);
+                          const indicatorDiv = document.createElement("div")
+                          indicatorDiv.className = "text-xs mt-1"
+                          indicatorDiv.innerText = "(Predicted)"
+                          verticalDiv.appendChild(indicatorDiv)
                         }
-                        
-                        verticalDiv.appendChild(timeDiv);
-                        verticalDiv.appendChild(titleDiv);
-                        eventEl.appendChild(verticalDiv);
+
+                        verticalDiv.appendChild(timeDiv)
+                        verticalDiv.appendChild(titleDiv)
+                        eventEl.appendChild(verticalDiv)
                       } else {
                         // Horizontal layout (original)
-                        const timeDiv = document.createElement('div');
-                        timeDiv.className = 'text-xs opacity-90';
-                        timeDiv.innerText = eventInfo.timeText;
-                        
-                        const titleDiv = document.createElement('div');
-                        titleDiv.className = 'text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis';
-                        titleDiv.innerText = title;
-                        
+                        const timeDiv = document.createElement("div")
+                        timeDiv.className = "text-xs opacity-90"
+                        timeDiv.innerText = eventInfo.timeText
+
+                        const titleDiv = document.createElement("div")
+                        titleDiv.className = "text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis"
+                        titleDiv.innerText = title
+
                         // Add prediction badge if applicable
                         if (eventInfo.event.extendedProps.isPrediction) {
-                          const badgeDiv = document.createElement('div');
-                          badgeDiv.className = 'text-xs text-purple-300 mt-1';
-                          badgeDiv.innerText = 'Predicted';
-                          eventEl.appendChild(badgeDiv);
+                          const badgeDiv = document.createElement("div")
+                          badgeDiv.className = "text-xs text-purple-300 mt-1"
+                          badgeDiv.innerText = "Predicted"
+                          eventEl.appendChild(badgeDiv)
                         }
-                        
-                        eventEl.appendChild(timeDiv);
-                        eventEl.appendChild(titleDiv);
+
+                        eventEl.appendChild(timeDiv)
+                        eventEl.appendChild(titleDiv)
                       }
-                      
-                      return { domNodes: [eventEl] };
+
+                      return { domNodes: [eventEl] }
                     }}
                   />
                 </div>
