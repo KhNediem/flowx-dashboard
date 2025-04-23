@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { EmployeeScheduling } from "./EmployeeScheduling";
-import { SalesForecasting } from "./SalesForecasting";
+import { SalesForecasting } from "./SalesForecasting"
 import { DemandForecasting } from "./DemandForecasting";
 import { generatePDF } from "@/lib/pdfGenerator";
 
@@ -79,7 +79,7 @@ export function Dashboard() {
               <CardTitle>Sales Forecasting</CardTitle>
             </CardHeader>
             <CardContent>
-              <SalesForecasting data={salesData} />
+              <SalesForecasting />
             </CardContent>
           </Card>
         </TabsContent>
