@@ -123,8 +123,8 @@ export function SalesForecasting() {
             disabled={loadingProducts}
             onValueChange={(val) => setSelectedProduct(Number(val))}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Product" />
+            <SelectTrigger data-testid="product-select">
+              <SelectValue placeholder="Product"  />
             </SelectTrigger>
             <SelectContent>
               {productIds.map((pid) => (
@@ -154,7 +154,7 @@ export function SalesForecasting() {
       )}
 
       {/* Chart Section */}
-      <div className="h-[380px] w-full">
+      <div className="h-[380px] w-full" data-testid="sales-forecast-chart">
         {!hasSearched ? (
           <div className="flex items-center justify-center h-full text-gray-400">
             Please select a product and click "Generate Graph" to view sales forecasts.
