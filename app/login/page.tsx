@@ -71,6 +71,7 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                data-testid="email-input" 
                 type="email"
                 placeholder="Enter your email"
                 value={email}
@@ -82,6 +83,7 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                data-testid="password-input"
                 type="password"
                 placeholder="Enter your password"
                 value={password}
