@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/Sales_forecasting-main/.venv
+/Sales_forecasting-main/data
+/Sales_forecasting-main/all_stores_products_predicted_units.csv
+/Sales_forecasting-main/predicted_units.csv
+/Sales_forecasting-main/random_forest_model.pkl
