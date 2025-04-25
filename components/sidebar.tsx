@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Package, Users, ShoppingCart, LogOut, ShoppingBag } from "lucide-react"
+import { Home, Package, Users, ShoppingCart, LogOut, ShoppingBag, Store } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function Sidebar() {
@@ -36,6 +36,17 @@ export function Sidebar() {
               Home
             </Link>
             <Link
+              href="/sales"
+              className={`flex items-center gap-3 rounded-lg px-4 py-2 ${
+                isActive("/sales")
+                  ? "bg-secondary text-secondary-foreground"
+                  : "text-muted-foreground hover:text-primary hover:bg-secondary"
+              }`}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Sales
+            </Link>
+            <Link
               href="/inventory"
               className={`flex items-center gap-3 rounded-lg px-4 py-2 ${
                 isActive("/inventory")
@@ -58,6 +69,17 @@ export function Sidebar() {
               Products
             </Link>
             <Link
+              href="/stores"
+              className={`flex items-center gap-3 rounded-lg px-4 py-2 ${
+                isActive("/stores")
+                  ? "bg-secondary text-secondary-foreground"
+                  : "text-muted-foreground hover:text-primary hover:bg-secondary"
+              }`}
+            >
+              <Store className="h-4 w-4" />
+              Stores
+            </Link>
+            <Link
               href="/employees"
               className={`flex items-center gap-3 rounded-lg px-4 py-2 ${
                 isActive("/employees")
@@ -67,17 +89,6 @@ export function Sidebar() {
             >
               <Users className="h-4 w-4" />
               Employees
-            </Link>
-            <Link
-              href="/orders"
-              className={`flex items-center gap-3 rounded-lg px-4 py-2 ${
-                isActive("/orders")
-                  ? "bg-secondary text-secondary-foreground"
-                  : "text-muted-foreground hover:text-primary hover:bg-secondary"
-              }`}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              Orders
             </Link>
           </div>
         </div>
