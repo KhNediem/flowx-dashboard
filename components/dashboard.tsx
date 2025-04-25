@@ -11,6 +11,7 @@ import { DemandForecasting } from "./DemandForecasting"
 import { generatePDF } from "@/lib/pdfGenerator"
 import { useRouter } from "next/navigation"
 import { CalendarClock, FileText, Package } from "lucide-react"
+import { SalesAnalysis } from "./SalesAnalysis"
 
 interface SalesEntry {
   id: number
@@ -98,6 +99,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <SalesForecasting />
+              <SalesAnalysis />
             </CardContent>
           </Card>
         </TabsContent>
